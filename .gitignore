@@ -30,6 +30,14 @@ build/
 !**/src/test/**/build/
 /OA-System-AI
 
+### Frontend ###
+node_modules/
+dist/
+oa-web/node_modules/
+oa-web/dist/
+oa-web/src/*.tsbuildinfo
+oa-web/*.log
+
 ### Local private runtime config ###
 .env
 .env.*
