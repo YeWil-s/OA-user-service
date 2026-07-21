@@ -31,3 +31,6 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### AI module secrets ###
+oa-ai/src/main/resources/application.yml

@@ -1,0 +1,82 @@
+# ============================================================
+# OA AI Service — 配置文件模板
+# 使用方式: 复制此文件为 application.yml 并填写实际配置值
+# ============================================================
+
+server:
+  port: 8087
+
+spring:
+  application:
+    name: oa-ai-service
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    # ai_db: AI模块自身数据表 (知识库、对话记录)
+    # MySQL用户需同时拥有 ai_db 和 approval_db 的访问权限
+    url: jdbc:mysql://localhost:3306/ai_db?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: root
+    password: 请填写数据库密码
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      database: 0          # Redis Stack 仅支持在 db 0 上创建索引
+      timeout: 3000ms
+  cloud:
+    nacos:
+      discovery:
+        server-addr: localhost:8848
+        namespace: public
+      config:
+        server-addr: localhost:8848
+        namespace: public
+        file-extension: yaml
+        import-check:
+          enabled: false
+
+mybatis-plus:
+  global-config:
+    db-config:
+      logic-delete-field: isDeleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+  configuration:
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+    map-underscore-to-camel-case: true
+
+# JWT配置 (需与 oa-user 模块保持一致)
+jwt:
+  secret: 请填写至少256位的JWT密钥
+  expiration: 7200000     # 2小时
+
+# AI模型配置
+oa:
+  ai:
+    llm:
+      # 支持任意 OpenAI 兼容 API (DeepSeek / 通义千问 / OpenAI 等)
+      base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
+      api-key: ${DEEPSEEK_API_KEY:请填写API密钥}
+      model: ${DEEPSEEK_MODEL:deepseek-chat}
+      temperature: 0.3       # 0-2, 越低回答越确定
+      max-tokens: 2048
+    embedding:
+      # 硅基流动免费 embedding，1024 维，Redis 索引需匹配 DIM 1024
+      base-url: ${EMBEDDING_BASE_URL:https://api.siliconflow.cn}
+      api-key: ${EMBEDDING_API_KEY:请填写硅基流动API密钥}
+      model: ${EMBEDDING_MODEL:BAAI/bge-large-zh-v1.5}
+    vector:
+      top-k: 5                # 向量检索返回数
+      similarity-threshold: 0.7
+    agent:
+      max-history-turns: 10   # 多轮对话上下文上限
+
+knife4j:
+  enable: true
+  setting:
+    language: zh_cn
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+  api-docs:
+    path: /v3/api-docs
