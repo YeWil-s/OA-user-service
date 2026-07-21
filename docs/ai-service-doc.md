@@ -269,7 +269,9 @@ oa.ai.vector.top-k: 5
 
 - [x] **向量检索**：已通过 Jedis `sendCommand(SEARCH)` + 硅基流动 bge-large-zh-v1.5 实现 Redis Stack KNN 余弦相似度检索。
 - [x] **索引自动创建**：已通过 Jedis `sendCommand(CREATE)` 在启动时自动建索引，稳定运行。
-- [ ] **审批服务对接**：`ApprovalServiceImpl` 当前直接写 `approval_db.app_application` 表。待 `oa-approval` 服务开发完成后，替换为 `RestTemplate.postForObject("http://oa-approval-service/api/approval/submit", dto, ...)`。
+- [x] **Agent 表单填写**：意图识别 → 字段提取 → 确认 → 提交 → 数据库写入全流程跑通。`app_application` 暂存于 `ai_db`。
+- [x] **对话记录存储**：从原始 SSE JSON token 改为提取纯文本后存储，提高可读性。
+- [ ] **审批服务对接**：`ApprovalServiceImpl` 当前直接写 `ai_db.app_application` 表。待 `oa-approval` 服务开发完成后，替换为 Nacos 服务发现 + HTTP 调用。
 
 ### 中优先级
 
