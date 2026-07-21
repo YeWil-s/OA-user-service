@@ -70,7 +70,7 @@ public class LlmServiceImpl implements LlmService {
                     throw new BusinessException(ResultCode.AI_SERVICE_ERROR);
                 }
 
-                String responseBody = response.body().string();
+                String responseBody = response.body().source().readString(StandardCharsets.UTF_8);
                 JsonNode root = OBJECT_MAPPER.readTree(responseBody);
                 return root.path("choices").get(0).path("message").path("content").asText();
             }

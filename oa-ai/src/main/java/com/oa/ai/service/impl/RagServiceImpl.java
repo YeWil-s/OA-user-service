@@ -1,5 +1,6 @@
 package com.oa.ai.service.impl;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.oa.ai.service.EmbeddingService;
 import com.oa.ai.service.IAiConversationService;
@@ -105,16 +106,16 @@ public class RagServiceImpl implements RagService {
 
     /** Extract "content" value from SSE token JSON like {"type":"token","content":"请假"} */
     private String extractTokenContent(String chunk) {
-        if (chunk == null || !chunk.contains("\"token\"")) return null;
-        int start = chunk.indexOf("\"content\":\"");
-        if (start < 0) return null;
-        start += 11; // skip "content":"
-        int end = chunk.indexOf("\"}", start);
-        if (end < 0) end = chunk.indexOf("\"", start);
-        if (end < 0) return null;
-        return chunk.substring(start, end)
-                .replace("\\n", "\n")
-                .replace("\\t", "\t")
-                .replace("\\\"", "\"");
+        if (chunk == null || chunk.isBlank()) return null;
+        try {
+            JsonNode node = OBJECT_MAPPER.readTree(chunk);
+            if ("token".equals(node.path("type").asText())) {
+                String content = node.path("content").asText();
+                return content.isEmpty() && !node.path("content").isMissingNode() ? content : content;
+            }
+        } catch (Exception ignored) {
+            // fallback to simple extraction for malformed JSON
+        }
+        return null;
     }
 }

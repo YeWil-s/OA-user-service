@@ -73,10 +73,7 @@ public class AgentServiceImpl implements AgentService {
 
                 JsonNode intentJson;
                 try {
-                    intentResult = intentResult.trim();
-                    if (intentResult.startsWith("```")) {
-                        intentResult = intentResult.replaceAll("```json\\s*", "").replaceAll("```\\s*", "");
-                    }
+                    intentResult = sanitizeLlmJson(intentResult);
                     intentJson = OBJECT_MAPPER.readTree(intentResult);
                 } catch (Exception e) {
                     log.warn("Failed to parse intent JSON, falling back to rag: {}", intentResult);
@@ -92,7 +89,18 @@ public class AgentServiceImpl implements AgentService {
 
                 // Step 2: Route based on intent
                 switch (intent) {
-                    case "FORM_FILLING" -> handleFormFilling(message, userId, deptId, sid, sink);
+                    case "FORM_FILLING" -> {
+                        // Check if this is a confirmation of existing form data
+                        String intentAction = intentJson.path("action").asText("");
+                        boolean hasPendingForm = sessionForms.containsKey(sid);
+                        if (hasPendingForm && ("confirm".equals(intentAction) || isConfirmationMessage(message))) {
+                            Map<String, Object> formData = sessionForms.remove(sid);
+                            confirmAndSubmit(formData, userId, deptId, sid)
+                                    .subscribe(sink::tryEmitNext, sink::tryEmitError, sink::tryEmitComplete);
+                        } else {
+                            handleFormFilling(message, userId, deptId, sid, sink);
+                        }
+                    }
                     case "KNOWLEDGE_QA" -> {
                         ragService.answerQuestion(message, userRoles, userId, sid)
                                 .subscribe(sink::tryEmitNext, sink::tryEmitError, sink::tryEmitComplete);
@@ -124,10 +132,7 @@ public class AgentServiceImpl implements AgentService {
 
             JsonNode extractionJson;
             try {
-                String cleaned = extractionResult.trim();
-                if (cleaned.startsWith("```")) {
-                    cleaned = cleaned.replaceAll("```json\\s*", "").replaceAll("```\\s*", "");
-                }
+                String cleaned = sanitizeLlmJson(extractionResult);
                 extractionJson = OBJECT_MAPPER.readTree(cleaned);
             } catch (Exception e) {
                 log.warn("Failed to parse extraction JSON: {}", extractionResult);
@@ -190,10 +195,11 @@ public class AgentServiceImpl implements AgentService {
 
             try {
                 String fieldsJson = OBJECT_MAPPER.writeValueAsString(formData);
-                sink.tryEmitNext("{\"type\":\"confirmation\",\"content\":\"" + escapeJson(confirmMsg.toString()) + "\",\"fields\":" + fieldsJson + "}");
+                sink.tryEmitNext("{\"type\":\"confirmation\",\"content\":\"" + escapeJson(confirmMsg.toString()) + "\",\"sessionId\":\"" + sessionId + "\",\"fields\":" + fieldsJson + "}");
             } catch (Exception e) {
-                sink.tryEmitNext("{\"type\":\"confirmation\",\"content\":\"" + escapeJson(confirmMsg.toString()) + "\"}");
+                sink.tryEmitNext("{\"type\":\"confirmation\",\"content\":\"" + escapeJson(confirmMsg.toString()) + "\",\"sessionId\":\"" + sessionId + "\"}");
             }
+            sink.tryEmitNext("{\"type\":\"done\",\"sessionId\":\"" + sessionId + "\"}");
             sink.tryEmitComplete();
         } catch (Exception e) {
             log.error("Form filling error: {}", e.getMessage());
@@ -242,6 +248,37 @@ public class AgentServiceImpl implements AgentService {
         }).start();
 
         return sink.asFlux();
+    }
+
+    /** Check if a message is a confirmation (yes/ok/submit) */
+    private boolean isConfirmationMessage(String message) {
+        if (message == null) return false;
+        String m = message.trim();
+        return m.equals("确认") || m.equals("是的") || m.equals("好的") || m.equals("可以")
+                || m.equals("提交") || m.equals("提交吧") || m.equals("确认提交")
+                || m.equalsIgnoreCase("yes") || m.equalsIgnoreCase("ok")
+                || m.equalsIgnoreCase("confirm") || m.equalsIgnoreCase("submit");
+    }
+
+    /**
+     * Sanitize LLM JSON output: strip markdown fences, extract first JSON object,
+     * fix common LLM mistakes like unescaped quotes within string values.
+     */
+    private String sanitizeLlmJson(String raw) {
+        if (raw == null || raw.isBlank()) return raw;
+        String s = raw.trim();
+
+        // Strip markdown code fences
+        s = s.replaceAll("```json", "").replaceAll("```", "").trim();
+
+        // Extract the outermost { ... } if there's extra text before or after
+        int firstBrace = s.indexOf('{');
+        int lastBrace = s.lastIndexOf('}');
+        if (firstBrace >= 0 && lastBrace > firstBrace) {
+            s = s.substring(firstBrace, lastBrace + 1);
+        }
+
+        return s;
     }
 
     private String escapeJson(String s) {
