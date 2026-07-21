@@ -33,6 +33,7 @@ public class RedisVectorConfig {
     @PostConstruct
     public void init() {
         JedisPoolConfig poolConfig = new JedisPoolConfig();
+        poolConfig.setJmxEnabled(false);
         jedisPool = new JedisPool(poolConfig, redisHost, redisPort, 2000, null, redisDatabase);
 
         try (Jedis jedis = jedisPool.getResource()) {

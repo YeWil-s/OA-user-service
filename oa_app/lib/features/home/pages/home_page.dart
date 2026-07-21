@@ -46,61 +46,6 @@ class _HomePageState extends ConsumerState<HomePage> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            // AI 助手入口卡片
-            Card(
-              child: InkWell(
-                onTap: () => context.push('/ai/chat'),
-                borderRadius: BorderRadius.circular(12),
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              theme.colorScheme.primary,
-                              theme.colorScheme.tertiary,
-                            ],
-                          ),
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: const Icon(
-                          Icons.auto_awesome,
-                          color: Colors.white,
-                          size: 24,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'AI 智能助手',
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              '智能问答 · 一键填单 · 政策咨询',
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: theme.colorScheme.outline,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Icon(Icons.chevron_right, color: theme.colorScheme.outline),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
             // 今日打卡状态卡片
             Text(
               '今日打卡',
