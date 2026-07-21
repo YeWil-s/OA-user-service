@@ -7,7 +7,7 @@ spring:
   cloud:
     nacos:
       discovery:
-        server-addr: 192.168.150.102:8848
+        server-addr: ${NACOS_SERVER_ADDR:localhost:8848}
         namespace: public
     gateway:
       discovery:
@@ -45,8 +45,8 @@ spring:
             - Path=/api/visual/**
 
 jwt:
-  secret: YourSuperSecretKeyForJWT_MustBeAtLeast256BitsLong!
-  expiration: 7200000
+  secret: ${JWT_SECRET:YourSuperSecretKeyForJWT_MustBeAtLeast256BitsLong!}
+  expiration: ${JWT_EXPIRATION:7200000}
 
 gateway:
   auth:
