@@ -1,0 +1,70 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: oa-gateway-service
+  cloud:
+    nacos:
+      discovery:
+        server-addr: 192.168.150.102:8848
+        namespace: public
+    gateway:
+      discovery:
+        locator:
+          enabled: true
+          lower-case-service-id: true
+      routes:
+        - id: oa-user-service
+          uri: lb://oa-user-service
+          predicates:
+            - Path=/api/user/**
+        - id: oa-attendance-service
+          uri: lb://oa-attendance-service
+          predicates:
+            - Path=/api/attendance/**
+        - id: oa-approval-service
+          uri: lb://oa-approval-service
+          predicates:
+            - Path=/api/approval/**
+        - id: oa-notice-service
+          uri: lb://oa-notice-service
+          predicates:
+            - Path=/api/notice/**
+        - id: oa-asset-service
+          uri: lb://oa-asset-service
+          predicates:
+            - Path=/api/asset/**
+        - id: oa-ai-service
+          uri: lb://oa-ai-service
+          predicates:
+            - Path=/api/ai/**
+        - id: oa-data-visual-service
+          uri: lb://oa-data-visual-service
+          predicates:
+            - Path=/api/visual/**
+
+jwt:
+  secret: YourSuperSecretKeyForJWT_MustBeAtLeast256BitsLong!
+  expiration: 7200000
+
+gateway:
+  auth:
+    enabled: true
+    whitelist:
+      - /api/user/login
+      - /api/user/health
+      - /api/notice/health
+      - /api/visual/health
+      - /actuator/**
+      - /doc.html
+      - /webjars/**
+      - /swagger-ui/**
+      - /swagger-ui.html
+      - /v3/api-docs/**
+      - /api/*/v3/api-docs/**
+      - /favicon.ico
+
+logging:
+  level:
+    com.oa.gateway: debug
