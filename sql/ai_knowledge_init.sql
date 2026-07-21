@@ -99,13 +99,12 @@ CREATE TABLE ai_analysis_report (
 ) ENGINE=InnoDB COMMENT='AI分析报告表';
 
 -- ============================================================
--- PART 3: approval_db — 审批申请单
+-- PART 3: ai_db — 审批申请单（临时）
 -- ============================================================
--- 说明: 当前 oa-approval 模块尚未开发，oa-ai 暂时直接写入此表。
--- 待 oa-approval 模块上线后，oa-ai 将通过 Nacos 服务发现 + HTTP 调用审批接口。
--- 届时此表的维护职责转移到 oa-approval 模块。
+-- 说明: 当前 oa-approval 模块尚未开发，oa-ai 暂存申请单于本地表。
+-- 待 oa-approval 模块上线后，由该模块负责创建 approval_db.app_application，
+-- oa-ai 改为通过 Nacos 服务发现 + HTTP 调用审批接口。
 -- ============================================================
-USE approval_db;
 
 DROP TABLE IF EXISTS app_application;
 CREATE TABLE app_application (

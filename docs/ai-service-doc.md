@@ -81,13 +81,13 @@ oa-ai/src/main/java/com/oa/ai/
 
 建表脚本：`sql/ai_knowledge_init.sql`
 
-### 3.2 approval_db（跨库访问，临时方案）
+### 3.2 审批申请单（临时本地表）
 
 | 表名 | 用途 |
 |------|------|
-| `app_application` | 审批申请单（oa-ai 直接写入） |
+| `app_application` | 审批申请单（当前存于 ai_db，oa-ai 直接写入） |
 
-> **TODO**: 当前为临时方案。待 oa-approval 服务开发完成后，改为通过 Nacos + Feign 调用。
+> **TODO**: 待 oa-approval 服务开发完成后，迁移至 approval_db，oa-ai 改为通过 Nacos + HTTP 调用。
 
 ---
 

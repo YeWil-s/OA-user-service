@@ -11,8 +11,7 @@ spring:
     name: oa-ai-service
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    # ai_db: AI模块自身数据表 (知识库、对话记录)
-    # MySQL用户需同时拥有 ai_db 和 approval_db 的访问权限
+    # AI模块数据库（知识库 + 对话记录 + 申请单本地缓存）
     url: jdbc:mysql://localhost:3306/ai_db?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
     username: root
     password: 请填写数据库密码

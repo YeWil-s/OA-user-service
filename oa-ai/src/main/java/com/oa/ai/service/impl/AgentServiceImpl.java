@@ -226,12 +226,17 @@ public class AgentServiceImpl implements AgentService {
                 sink.tryEmitNext("{\"type\":\"submitted\",\"applicationNo\":\"" + applicationNo + "\",\"content\":\"" + escapeJson(result) + "\"}");
                 sink.tryEmitNext("{\"type\":\"done\",\"sessionId\":\"" + sessionId + "\"}");
 
-                conversationService.saveConversation(userId, sessionId,
-                        "确认提交申请", result, 1, 0);
+                try {
+                    conversationService.saveConversation(userId, sessionId,
+                            "确认提交申请", result, 1, 0);
+                } catch (Exception ex) {
+                    log.warn("Failed to save form conversation: {}", ex.getMessage());
+                }
                 sink.tryEmitComplete();
             } catch (Exception e) {
-                log.error("Form submit error: {}", e.getMessage());
-                sink.tryEmitNext("{\"type\":\"error\",\"content\":\"提交失败：\" + e.getMessage()}");
+                log.error("Form submit error", e);
+                String errMsg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+                sink.tryEmitNext("{\"type\":\"error\",\"content\":\"提交失败：" + escapeJson(errMsg) + "\"}");
                 sink.tryEmitComplete();
             }
         }).start();

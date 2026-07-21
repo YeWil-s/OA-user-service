@@ -7,7 +7,7 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import java.io.Serializable;
 import java.time.LocalDateTime;
 
-@TableName("approval_db.app_approval_record")
+@TableName("app_approval_record")
 public class AppApprovalRecord implements Serializable {
 
     @TableId(type = IdType.AUTO)

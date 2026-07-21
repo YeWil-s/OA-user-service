@@ -8,7 +8,7 @@ import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-@TableName("approval_db.app_application")
+@TableName("app_application")
 public class AppApplication implements Serializable {
 
     @TableId(type = IdType.AUTO)

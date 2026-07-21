@@ -70,7 +70,7 @@ public class ApprovalServiceImpl implements IApprovalService {
         String today = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
         String maxNo = applicationMapper.selectMaxApplicationNoToday();
         int seq = 1;
-        if (maxNo != null && maxNo.length() >= 16) {
+        if (maxNo != null && maxNo.length() >= 13) {
             try {
                 seq = Integer.parseInt(maxNo.substring(maxNo.length() - 3)) + 1;
             } catch (NumberFormatException e) {
