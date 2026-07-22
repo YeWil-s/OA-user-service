@@ -14,6 +14,8 @@ public interface ISysUserService extends IService<SysUser> {
 
     LoginVO login(String username, String password);
 
+    void logout(String token);
+
     CurrentUserVO getCurrentUser(String token);
 
     IPage<SysUser> pageEmployees(Integer pageNum, Integer pageSize, Long deptId, Long positionId, String realName, Integer status);

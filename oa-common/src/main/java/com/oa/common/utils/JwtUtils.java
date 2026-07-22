@@ -79,4 +79,9 @@ public class JwtUtils {
     public List<String> getPermissions(String token) {
         return parseToken(token).get("permissions", List.class);
     }
+
+    public long getRemainingTtl(String token) {
+        Date expiration = parseToken(token).getExpiration();
+        return expiration.getTime() - System.currentTimeMillis();
+    }
 }

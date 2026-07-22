@@ -28,9 +28,10 @@ public class AuthController {
         return Result.success(vo);
     }
 
-    @Operation(summary = "用户登出")
+    @Operation(summary = "用户登出（JWT加入Redis黑名单）")
     @PostMapping("/logout")
-    public Result<Void> logout() {
+    public Result<Void> logout(@RequestHeader("Authorization") String authHeader) {
+        sysUserService.logout(authHeader);
         return Result.success();
     }
 

@@ -7,6 +7,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.oa.common.exception.BusinessException;
 import com.oa.common.result.ResultCode;
 import com.oa.common.utils.JwtUtils;
+import com.oa.common.utils.RedisUtils;
 import com.oa.user.dto.EmployeeDTO;
 import com.oa.user.dto.ResetPasswordDTO;
 import com.oa.user.entity.SysUser;
@@ -28,11 +29,14 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     private final SysUserMapper sysUserMapper;
     private final JwtUtils jwtUtils;
     private final BCryptPasswordEncoder passwordEncoder;
+    private final RedisUtils redisUtils;
 
-    public SysUserServiceImpl(SysUserMapper sysUserMapper, JwtUtils jwtUtils, BCryptPasswordEncoder passwordEncoder) {
+    public SysUserServiceImpl(SysUserMapper sysUserMapper, JwtUtils jwtUtils,
+                              BCryptPasswordEncoder passwordEncoder, RedisUtils redisUtils) {
         this.sysUserMapper = sysUserMapper;
         this.jwtUtils = jwtUtils;
         this.passwordEncoder = passwordEncoder;
+        this.redisUtils = redisUtils;
     }
 
     @Override
@@ -58,6 +62,17 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         this.updateById(user);
 
         return new LoginVO(token, user.getId(), user.getUsername(), user.getRealName(), user.getAvatarUrl(), roles, permissions);
+    }
+
+    @Override
+    public void logout(String token) {
+        if (token.startsWith("Bearer ")) {
+            token = token.substring(7);
+        }
+        long remainingTtl = jwtUtils.getRemainingTtl(token);
+        if (remainingTtl > 0) {
+            redisUtils.set("jwt:blacklist:" + token, "1", java.time.Duration.ofMillis(remainingTtl));
+        }
     }
 
     @Override
