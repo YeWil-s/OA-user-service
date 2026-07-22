@@ -32,5 +32,12 @@ build/
 ### VS Code ###
 .vscode/
 
+### Frontend ###
+node_modules/
+dist/
+*.lock
+pnpm-lock.yaml
+package-lock.json
+
 ### AI module secrets ###
 oa-ai/src/main/resources/application.yml

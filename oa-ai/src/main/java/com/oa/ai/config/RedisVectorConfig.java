@@ -68,7 +68,7 @@ public class RedisVectorConfig {
                 }
             }
         } catch (Exception e) {
-            log.error("Failed to initialize Redis vector index '{}': {}", INDEX, e.getMessage());
+            log.warn("Redis Stack not available — vector search disabled, falling back to MySQL keyword search: {}", e.getMessage());
         }
     }
 
