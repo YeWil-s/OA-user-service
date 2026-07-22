@@ -48,12 +48,13 @@ class ChatState {
     String? currentSessionId,
     bool? isStreaming,
     String? formConfirmation,
+    bool clearFormConfirmation = false,
   }) {
     return ChatState(
       messages: messages ?? this.messages,
       currentSessionId: currentSessionId ?? this.currentSessionId,
       isStreaming: isStreaming ?? this.isStreaming,
-      formConfirmation: formConfirmation,
+      formConfirmation: clearFormConfirmation ? null : (formConfirmation ?? this.formConfirmation),
     );
   }
 }
@@ -100,6 +101,14 @@ class ChatNotifier extends StateNotifier<ChatState> {
     );
   }
 
+  void modifyForm() {
+    if (state.formConfirmation == null || state.isStreaming) return;
+    _startAgentStream(
+      message: '需要修改申请信息',
+      action: 'modify',
+    );
+  }
+
   // ---------- Agent 流式（RAG 知识问答 + 意图识别 + 填单） ----------
 
   void _handleAgentStream(String message) {
@@ -110,7 +119,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
     _cancelStream();
     state = state.copyWith(
       isStreaming: true,
-      formConfirmation: null,
+      clearFormConfirmation: true,
     );
 
     _addMessage(ChatMessage(

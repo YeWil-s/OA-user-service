@@ -141,17 +141,36 @@ class _AiChatPageState extends ConsumerState<AiChatPage> {
   Widget _buildConfirmBar(ThemeData theme) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: SizedBox(
-        width: double.infinity,
-        height: 42,
-        child: FilledButton.icon(
-          onPressed: () => ref.read(chatProvider.notifier).confirmForm(),
-          icon: const Icon(Icons.check, size: 20),
-          label: const Text('确认提交表单', style: TextStyle(fontSize: 15)),
-          style: FilledButton.styleFrom(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Row(
+        children: [
+          Expanded(
+            child: SizedBox(
+              height: 42,
+              child: FilledButton.icon(
+                onPressed: () => ref.read(chatProvider.notifier).confirmForm(),
+                icon: const Icon(Icons.check, size: 20),
+                label: const Text('确认提交', style: TextStyle(fontSize: 15)),
+                style: FilledButton.styleFrom(
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ),
           ),
-        ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: SizedBox(
+              height: 42,
+              child: OutlinedButton.icon(
+                onPressed: () => ref.read(chatProvider.notifier).modifyForm(),
+                icon: const Icon(Icons.edit_note, size: 20),
+                label: const Text('修改信息', style: TextStyle(fontSize: 15)),
+                style: OutlinedButton.styleFrom(
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
