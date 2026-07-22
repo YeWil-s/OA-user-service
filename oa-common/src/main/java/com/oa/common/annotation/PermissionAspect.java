@@ -1,5 +1,7 @@
 package com.oa.common.annotation;
 
+import com.oa.common.context.CurrentUser;
+import com.oa.common.context.UserContextHolder;
 import com.oa.common.exception.BusinessException;
 import com.oa.common.result.ResultCode;
 import jakarta.servlet.http.HttpServletRequest;
@@ -24,8 +26,7 @@ public class PermissionAspect {
         String[] requiredRoles = requiresRole.value();
         if (requiredRoles.length == 0) return;
 
-        @SuppressWarnings("unchecked")
-        List<String> userRoles = (List<String>) request.getAttribute("roles");
+        List<String> userRoles = resolveCurrentUser().getRoles();
         if (userRoles == null || userRoles.isEmpty()) {
             throw new BusinessException(ResultCode.FORBIDDEN);
         }
@@ -49,8 +50,7 @@ public class PermissionAspect {
         String[] requiredPerms = requiresPermission.value();
         if (requiredPerms.length == 0) return;
 
-        @SuppressWarnings("unchecked")
-        List<String> userPermissions = (List<String>) request.getAttribute("permissions");
+        List<String> userPermissions = resolveCurrentUser().getPermissions();
         if (userPermissions == null || userPermissions.isEmpty()) {
             throw new BusinessException(ResultCode.FORBIDDEN);
         }
@@ -67,5 +67,17 @@ public class PermissionAspect {
             }
             throw new BusinessException(ResultCode.FORBIDDEN);
         }
+    }
+
+    private CurrentUser resolveCurrentUser() {
+        Object rolesAttribute = request.getAttribute("roles");
+        Object permissionsAttribute = request.getAttribute("permissions");
+        if (rolesAttribute instanceof List<?> roles && permissionsAttribute instanceof List<?> permissions) {
+            CurrentUser currentUser = new CurrentUser();
+            currentUser.setRoles(roles.stream().map(String::valueOf).toList());
+            currentUser.setPermissions(permissions.stream().map(String::valueOf).toList());
+            return currentUser;
+        }
+        return UserContextHolder.fromRequest(request);
     }
 }

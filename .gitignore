@@ -28,6 +28,16 @@ target/
 build/
 !**/src/main/**/build/
 !**/src/test/**/build/
+/OA-System-AI
+
+### Local private runtime config ###
+.env
+.env.*
+!.env.example
+**/src/main/resources/application-local.yml
+**/src/main/resources/application-local.yaml
+**/src/main/resources/application-private.yml
+**/src/main/resources/application-private.yaml
 
 ### VS Code ###
 .vscode/

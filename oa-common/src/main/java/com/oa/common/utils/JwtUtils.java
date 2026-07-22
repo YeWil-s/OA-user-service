@@ -10,8 +10,8 @@ import org.slf4j.LoggerFactory;
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 public class JwtUtils {
 
@@ -30,12 +30,20 @@ public class JwtUtils {
         this(DEFAULT_SECRET, expirationMs);
     }
 
-    public String generateToken(Long userId, String username, List<String> roles, List<String> permissions) {
+
+    public String generateToken(Long userId, Long deptId, String username, List<String> roles, List<String> permissions) {
         Date now = new Date();
         Date expiry = new Date(now.getTime() + expirationMs);
 
+        HashMap<String, Object> claims = new HashMap<>();
+        claims.put("roles", roles == null ? List.of() : roles);
+        claims.put("permissions", permissions == null ? List.of() : permissions);
+        if (deptId != null) {
+            claims.put("deptId", deptId);
+        }
+
         return Jwts.builder()
-                .claims(Map.of("roles", roles, "permissions", permissions))
+                .claims(claims)
                 .subject(username)
                 .id(String.valueOf(userId))
                 .issuedAt(now)
@@ -78,5 +86,16 @@ public class JwtUtils {
     @SuppressWarnings("unchecked")
     public List<String> getPermissions(String token) {
         return parseToken(token).get("permissions", List.class);
+    }
+
+    public Long getDeptId(String token) {
+        Object deptId = parseToken(token).get("deptId");
+        if (deptId == null) {
+            return null;
+        }
+        if (deptId instanceof Number number) {
+            return number.longValue();
+        }
+        return Long.valueOf(String.valueOf(deptId));
     }
 }

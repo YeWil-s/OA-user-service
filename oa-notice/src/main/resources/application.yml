@@ -1,12 +1,12 @@
 server:
-  port: 8081
+  port: 8084
 
 spring:
   application:
-    name: oa-user-service
+    name: oa-notice-service
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/user_db?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/notice_db?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
     username: ${MYSQL_USERNAME:root}
     password: ${MYSQL_PASSWORD:123456}
   data:
@@ -36,10 +36,6 @@ mybatis-plus:
   configuration:
     log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
     map-underscore-to-camel-case: true
-
-jwt:
-  secret: ${JWT_SECRET:YourSuperSecretKeyForJWT_MustBeAtLeast256BitsLong!}
-  expiration: ${JWT_EXPIRATION:7200000}
 
 knife4j:
   enable: true
