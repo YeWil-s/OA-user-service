@@ -41,12 +41,14 @@ public class LlmServiceImpl implements LlmService {
 
     @Override
     public String chat(String systemPrompt, String userMessage) {
+        return chat(systemPrompt, List.of(), userMessage);
+    }
+
+    @Override
+    public String chat(String systemPrompt, List<Map<String, String>> history, String userMessage) {
         try {
             String url = config.getBaseUrl() + "/v1/chat/completions";
-
-            List<Map<String, String>> messages = new ArrayList<>();
-            messages.add(Map.of("role", "system", "content", systemPrompt));
-            messages.add(Map.of("role", "user", "content", userMessage));
+            List<Map<String, String>> messages = buildMessages(systemPrompt, history, userMessage);
 
             Map<String, Object> body = Map.of(
                     "model", config.getModel(),
@@ -84,15 +86,17 @@ public class LlmServiceImpl implements LlmService {
 
     @Override
     public Flux<String> chatStream(String systemPrompt, String userMessage) {
+        return chatStream(systemPrompt, List.of(), userMessage);
+    }
+
+    @Override
+    public Flux<String> chatStream(String systemPrompt, List<Map<String, String>> history, String userMessage) {
         Sinks.Many<String> sink = Sinks.many().unicast().onBackpressureBuffer();
 
         new Thread(() -> {
             try {
                 String url = config.getBaseUrl() + "/v1/chat/completions";
-
-                List<Map<String, String>> messages = new ArrayList<>();
-                messages.add(Map.of("role", "system", "content", systemPrompt));
-                messages.add(Map.of("role", "user", "content", userMessage));
+                List<Map<String, String>> messages = buildMessages(systemPrompt, history, userMessage);
 
                 Map<String, Object> body = Map.of(
                         "model", config.getModel(),
@@ -160,5 +164,15 @@ public class LlmServiceImpl implements LlmService {
         }).start();
 
         return sink.asFlux();
+    }
+
+    private List<Map<String, String>> buildMessages(String systemPrompt, List<Map<String, String>> history, String userMessage) {
+        List<Map<String, String>> messages = new ArrayList<>();
+        messages.add(Map.of("role", "system", "content", systemPrompt));
+        if (history != null) {
+            messages.addAll(history);
+        }
+        messages.add(Map.of("role", "user", "content", userMessage));
+        return messages;
     }
 }

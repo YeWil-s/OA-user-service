@@ -12,6 +12,7 @@ import com.oa.user.dto.ResetPasswordDTO;
 import com.oa.user.entity.SysUser;
 import com.oa.user.mapper.SysUserMapper;
 import com.oa.user.service.ISysUserService;
+import com.oa.user.vo.CurrentUserVO;
 import com.oa.user.vo.LoginVO;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -57,6 +58,34 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         this.updateById(user);
 
         return new LoginVO(token, user.getId(), user.getUsername(), user.getRealName(), user.getAvatarUrl(), roles, permissions);
+    }
+
+    @Override
+    public CurrentUserVO getCurrentUser(String token) {
+        if (token.startsWith("Bearer ")) {
+            token = token.substring(7);
+        }
+        if (!jwtUtils.validateToken(token)) {
+            throw new BusinessException(ResultCode.UNAUTHORIZED);
+        }
+        Long userId = jwtUtils.getUserId(token);
+        SysUser user = this.getById(userId);
+        if (user == null || user.getStatus() == 0) {
+            throw new BusinessException(ResultCode.USER_NOT_FOUND);
+        }
+
+        List<String> roles = jwtUtils.getRoles(token);
+        List<String> permissions = jwtUtils.getPermissions(token);
+
+        CurrentUserVO vo = new CurrentUserVO();
+        vo.setUserId(user.getId());
+        vo.setUsername(user.getUsername());
+        vo.setRealName(user.getRealName());
+        vo.setDeptId(user.getDeptId());
+        vo.setAvatarUrl(user.getAvatarUrl());
+        vo.setRoles(roles);
+        vo.setPermissions(permissions);
+        return vo;
     }
 
     @Override

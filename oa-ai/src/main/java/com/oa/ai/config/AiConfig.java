@@ -17,6 +17,12 @@ public class AiConfig {
     }
 
     @Bean
+    @ConfigurationProperties(prefix = "oa.ai.agent")
+    public AgentProperties agentProperties() {
+        return new AgentProperties();
+    }
+
+    @Bean
     @ConfigurationProperties(prefix = "oa.ai.embedding")
     public EmbeddingProperties embeddingProperties() {
         return new EmbeddingProperties();
@@ -61,5 +67,12 @@ public class AiConfig {
         public void setApiKey(String apiKey) { this.apiKey = apiKey; }
         public String getModel() { return model; }
         public void setModel(String model) { this.model = model; }
+    }
+
+    public static class AgentProperties {
+        private int maxHistoryTurns = 10;
+
+        public int getMaxHistoryTurns() { return maxHistoryTurns; }
+        public void setMaxHistoryTurns(int maxHistoryTurns) { this.maxHistoryTurns = maxHistoryTurns; }
     }
 }

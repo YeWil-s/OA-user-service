@@ -2,6 +2,7 @@ package com.oa.ai.service.impl;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.oa.ai.config.AiConfig;
 import com.oa.ai.service.EmbeddingService;
 import com.oa.ai.service.IAiConversationService;
 import com.oa.ai.service.LlmService;
@@ -16,6 +17,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
 
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class RagServiceImpl implements RagService {
@@ -28,15 +30,18 @@ public class RagServiceImpl implements RagService {
     private final PromptService promptService;
     private final LlmService llmService;
     private final IAiConversationService conversationService;
+    private final AiConfig.AgentProperties agentProperties;
 
     public RagServiceImpl(EmbeddingService embeddingService, VectorStoreService vectorStoreService,
                           PromptService promptService, LlmService llmService,
-                          IAiConversationService conversationService) {
+                          IAiConversationService conversationService,
+                          AiConfig.AgentProperties agentProperties) {
         this.embeddingService = embeddingService;
         this.vectorStoreService = vectorStoreService;
         this.promptService = promptService;
         this.llmService = llmService;
         this.conversationService = conversationService;
+        this.agentProperties = agentProperties;
     }
 
     @Override
@@ -67,9 +72,13 @@ public class RagServiceImpl implements RagService {
                 String systemPrompt = promptService.buildRagSystemPrompt(sources, userRoles);
                 String userPrompt = promptService.buildRagUserPrompt(question, sources);
 
-                // Step 4: LLM stream
+                // Step 4: Fetch conversation history for short-term memory
+                List<Map<String, String>> history = conversationService.getRecentHistory(
+                        sessionId, userId, agentProperties.getMaxHistoryTurns());
+
+                // Step 5: LLM stream with history
                 StringBuilder fullAnswer = new StringBuilder();
-                llmService.chatStream(systemPrompt, userPrompt)
+                llmService.chatStream(systemPrompt, history, userPrompt)
                         .doOnNext(chunk -> {
                             // Extract text from SSE token JSON for readable storage
                             String text = extractTokenContent(chunk);

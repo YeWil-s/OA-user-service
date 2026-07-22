@@ -5,6 +5,7 @@ import com.oa.ai.vo.SourceRefVO;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class PromptServiceImpl implements PromptService {
@@ -78,6 +79,38 @@ public class PromptServiceImpl implements PromptService {
             ## 输出格式（仅输出JSON）
             {"appType":1,"leaveType":3,"startTime":"...","endTime":"...","duration":1.0,"reason":"...","missingFields":[],"needClarification":false,"clarificationQuestion":""}
             """.formatted(currentDate);
+    }
+
+    @Override
+    public String buildExtractionPrompt(String currentDate, Map<String, Object> existingFields) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("你是一个表单填写助手。这是一个**多轮对话**，用户正在逐步补充申请信息。\n\n");
+        sb.append("## 申请类型(appType)\n");
+        sb.append("1=请假, 2=加班, 3=外出\n\n");
+        sb.append("## 请假子类型(leaveType, 仅appType=1时需要)\n");
+        sb.append("1=年假, 2=事假, 3=病假, 4=婚假, 5=产假\n\n");
+        sb.append("## 当前时间：").append(currentDate).append("\n\n");
+
+        if (existingFields != null && !existingFields.isEmpty()) {
+            sb.append("## 已提取的字段（请保留，只需补充缺失的）\n");
+            for (Map.Entry<String, Object> entry : existingFields.entrySet()) {
+                if (entry.getValue() != null) {
+                    sb.append("- ").append(entry.getKey()).append(": ").append(entry.getValue()).append("\n");
+                }
+            }
+            sb.append("\n");
+        }
+
+        sb.append("## 字段提取规则\n");
+        sb.append("- 在已提取字段的基础上，从用户最新消息中补充新的信息，不要覆盖已有字段。\n");
+        sb.append("- startTime/endTime: 格式YYYY-MM-DD HH:mm:ss。如果用户说\"明天\"基于当前时间推算。如果只说日期不说到时间，请假默认为全天(09:00-18:00)，加班默认为18:00-21:00。\n");
+        sb.append("- duration: 时长(天)，自动计算保留1位小数。\n");
+        sb.append("- reason: 用户原话或总结。\n");
+        sb.append("- 如果还有必填字段缺失（startTime/endTime），needClarification设为true。\n\n");
+        sb.append("## 输出格式（仅输出JSON，不要任何其他文字）\n");
+        sb.append("{\"appType\":1,\"leaveType\":3,\"startTime\":\"...\",\"endTime\":\"...\",\"duration\":1.0,\"reason\":\"...\",\"missingFields\":[],\"needClarification\":false,\"clarificationQuestion\":\"\"}");
+
+        return sb.toString();
     }
 
     @Override

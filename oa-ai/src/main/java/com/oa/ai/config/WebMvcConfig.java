@@ -1,6 +1,6 @@
 package com.oa.ai.config;
 
-import com.oa.ai.interceptor.JwtInterceptor;
+import com.oa.ai.interceptor.AuthInterceptor;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
@@ -9,15 +9,15 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 @Configuration
 public class WebMvcConfig implements WebMvcConfigurer {
 
-    private final JwtInterceptor jwtInterceptor;
+    private final AuthInterceptor authInterceptor;
 
-    public WebMvcConfig(JwtInterceptor jwtInterceptor) {
-        this.jwtInterceptor = jwtInterceptor;
+    public WebMvcConfig(AuthInterceptor authInterceptor) {
+        this.authInterceptor = authInterceptor;
     }
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
-        registry.addInterceptor(jwtInterceptor)
+        registry.addInterceptor(authInterceptor)
                 .addPathPatterns("/api/ai/**")
                 .excludePathPatterns("/swagger-ui/**", "/v3/api-docs/**", "/doc.html");
     }

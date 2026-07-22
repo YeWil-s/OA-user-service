@@ -3,6 +3,7 @@ package com.oa.user.controller;
 import com.oa.common.result.Result;
 import com.oa.user.dto.LoginDTO;
 import com.oa.user.service.ISysUserService;
+import com.oa.user.vo.CurrentUserVO;
 import com.oa.user.vo.LoginVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -33,9 +34,10 @@ public class AuthController {
         return Result.success();
     }
 
-    @Operation(summary = "获取当前登录用户信息")
+    @Operation(summary = "获取当前登录用户信息（供其他微服务通过Nacos调用）")
     @GetMapping("/current")
-    public Result<Void> current(@RequestHeader("Authorization") String authHeader) {
-        return Result.success();
+    public Result<CurrentUserVO> current(@RequestHeader("Authorization") String authHeader) {
+        CurrentUserVO vo = sysUserService.getCurrentUser(authHeader);
+        return Result.success(vo);
     }
 }

@@ -2,6 +2,7 @@ package com.oa.ai.service.impl;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.oa.ai.config.AiConfig;
 import com.oa.ai.dto.ApprovalSubmitDTO;
 import com.oa.ai.service.*;
 import org.slf4j.Logger;
@@ -31,17 +32,20 @@ public class AgentServiceImpl implements AgentService {
     private final RagService ragService;
     private final IApprovalService approvalService;
     private final IAiConversationService conversationService;
+    private final AiConfig.AgentProperties agentProperties;
 
     // session state: stores pending form data waiting for user confirmation
     private final ConcurrentHashMap<String, Map<String, Object>> sessionForms = new ConcurrentHashMap<>();
 
     public AgentServiceImpl(PromptService promptService, LlmService llmService, RagService ragService,
-                            IApprovalService approvalService, IAiConversationService conversationService) {
+                            IApprovalService approvalService, IAiConversationService conversationService,
+                            AiConfig.AgentProperties agentProperties) {
         this.promptService = promptService;
         this.llmService = llmService;
         this.ragService = ragService;
         this.approvalService = approvalService;
         this.conversationService = conversationService;
+        this.agentProperties = agentProperties;
     }
 
     @Override
@@ -61,15 +65,40 @@ public class AgentServiceImpl implements AgentService {
             return confirmAndSubmit(formData, userId, deptId, sid);
         }
 
+        if ("modify".equals(action)) {
+            sessionForms.remove(sid);
+            Sinks.Many<String> sink = Sinks.many().unicast().onBackpressureBuffer();
+            new Thread(() -> {
+                try {
+                    String modifyPrompt = "请问需要修改哪些信息？请描述您需要调整的内容（例如：改成请假3天、开始时间改成明天等）。";
+                    sink.tryEmitNext("{\"type\":\"message\",\"content\":\"" + escapeJson(modifyPrompt) + "\"}");
+                    try {
+                        conversationService.saveConversation(userId, sid, message, modifyPrompt, 1, 0);
+                    } catch (Exception ex) {
+                        log.warn("Failed to save modify conversation: {}", ex.getMessage());
+                    }
+                    sink.tryEmitNext("{\"type\":\"done\",\"sessionId\":\"" + sid + "\"}");
+                    sink.tryEmitComplete();
+                } catch (Exception e) {
+                    log.error("Modify flow error: {}", e.getMessage());
+                    sink.tryEmitNext("{\"type\":\"error\",\"content\":\"处理失败，请重试\"}");
+                    sink.tryEmitComplete();
+                }
+            }).start();
+            return sink.asFlux();
+        }
+
         Sinks.Many<String> sink = Sinks.many().unicast().onBackpressureBuffer();
 
         new Thread(() -> {
             try {
-                // Step 1: Intent classification
+                // Step 1: Intent classification (with conversation history for context)
                 sink.tryEmitNext("{\"type\":\"thinking\",\"content\":\"正在理解您的意图...\"}");
 
+                List<Map<String, String>> history = conversationService.getRecentHistory(
+                        sid, userId, agentProperties.getMaxHistoryTurns());
                 String intentPrompt = promptService.buildIntentPrompt();
-                String intentResult = llmService.chat(intentPrompt, message);
+                String intentResult = llmService.chat(intentPrompt, history, message);
 
                 JsonNode intentJson;
                 try {
@@ -106,7 +135,13 @@ public class AgentServiceImpl implements AgentService {
                                 .subscribe(sink::tryEmitNext, sink::tryEmitError, sink::tryEmitComplete);
                     }
                     default -> {
-                        sink.tryEmitNext("{\"type\":\"message\",\"content\":\"抱歉，我只是一个办公助手，无法回答这个问题。您可以尝试询问公司制度、请假流程、操作规范等方面的问题，或者直接告诉我您想申请什么（如请假、加班、外出）。\"}");
+                        String fallbackMsg = "抱歉，我只是一个办公助手，无法回答这个问题。您可以尝试询问公司制度、请假流程、操作规范等方面的问题，或者直接告诉我您想申请什么（如请假、加班、外出）。";
+                        try {
+                            conversationService.saveConversation(userId, sid, message, fallbackMsg, 1, 0);
+                        } catch (Exception ex) {
+                            log.warn("Failed to save fallback conversation: {}", ex.getMessage());
+                        }
+                        sink.tryEmitNext("{\"type\":\"message\",\"content\":\"" + escapeJson(fallbackMsg) + "\"}");
                         sink.tryEmitNext("{\"type\":\"done\",\"sessionId\":\"" + sid + "\"}");
                         sink.tryEmitComplete();
                     }
@@ -126,9 +161,17 @@ public class AgentServiceImpl implements AgentService {
         try {
             sink.tryEmitNext("{\"type\":\"thinking\",\"content\":\"正在提取申请信息...\"}");
 
+            // Load existing partial form data from previous turns
+            @SuppressWarnings("unchecked")
+            Map<String, Object> existingFields = sessionForms.get(sessionId);
+
             String currentDate = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
-            String extractionPrompt = promptService.buildExtractionPrompt(currentDate);
-            String extractionResult = llmService.chat(extractionPrompt, message);
+            List<Map<String, String>> history = conversationService.getRecentHistory(
+                    sessionId, userId, agentProperties.getMaxHistoryTurns());
+            String extractionPrompt = existingFields != null && !existingFields.isEmpty()
+                    ? promptService.buildExtractionPrompt(currentDate, existingFields)
+                    : promptService.buildExtractionPrompt(currentDate);
+            String extractionResult = llmService.chat(extractionPrompt, history, message);
 
             JsonNode extractionJson;
             try {
@@ -141,23 +184,60 @@ public class AgentServiceImpl implements AgentService {
                 return;
             }
 
+            // Merge extraction result with existing fields (existing values take precedence unless overridden)
+            Map<String, Object> formData = new HashMap<>();
+            if (existingFields != null) {
+                formData.putAll(existingFields);
+            }
+            // Only overwrite with non-null, non-empty extracted values
+            if (!extractionJson.path("appType").isNull()) {
+                formData.put("appType", extractionJson.path("appType").asInt());
+            }
+            if (!extractionJson.path("leaveType").isNull()) {
+                formData.put("leaveType", extractionJson.path("leaveType").asInt());
+            }
+            String extractedStart = extractionJson.path("startTime").asText();
+            if (!extractedStart.isBlank()) {
+                formData.put("startTime", extractedStart);
+            }
+            String extractedEnd = extractionJson.path("endTime").asText();
+            if (!extractedEnd.isBlank()) {
+                formData.put("endTime", extractedEnd);
+            }
+            double extractedDuration = extractionJson.path("duration").asDouble(-1);
+            if (extractedDuration > 0) {
+                formData.put("duration", extractedDuration);
+            }
+            String extractedReason = extractionJson.path("reason").asText();
+            if (!extractedReason.isBlank()) {
+                formData.put("reason", extractedReason);
+            }
+
             boolean needClarification = extractionJson.path("needClarification").asBoolean(false);
-            if (needClarification) {
+            // Also check: if startTime or endTime is still missing, we need clarification
+            boolean missingRequired = !formData.containsKey("startTime")
+                    || formData.get("startTime") == null
+                    || formData.get("startTime").toString().isBlank();
+            if (needClarification || missingRequired) {
+                // Save partial fields for next turn
+                sessionForms.put(sessionId, formData);
+
                 String clarificationQ = extractionJson.path("clarificationQuestion").asText("请提供更多信息");
-                sink.tryEmitNext("{\"type\":\"clarification\",\"content\":\"" + clarificationQ + "\"}");
+                if (missingRequired && clarificationQ.equals("请提供更多信息")) {
+                    clarificationQ = "请问您想从什么时候开始请假？需要请几天？";
+                }
+                try {
+                    conversationService.saveConversation(userId, sessionId, message, clarificationQ, 1, 0);
+                } catch (Exception ex) {
+                    log.warn("Failed to save clarification conversation: {}", ex.getMessage());
+                }
+                sink.tryEmitNext("{\"type\":\"clarification\",\"content\":\"" + escapeJson(clarificationQ) + "\"}");
+                sink.tryEmitNext("{\"type\":\"done\",\"sessionId\":\"" + sessionId + "\"}");
                 sink.tryEmitComplete();
                 return;
             }
 
-            // Build confirm form
-            Map<String, Object> formData = new HashMap<>();
-            formData.put("appType", extractionJson.path("appType").asInt(1));
-            formData.put("leaveType", extractionJson.path("leaveType").isNull() ? null : extractionJson.path("leaveType").asInt());
-            formData.put("startTime", extractionJson.path("startTime").asText());
-            formData.put("endTime", extractionJson.path("endTime").asText());
-            formData.put("duration", extractionJson.path("duration").asDouble(1.0));
-            formData.put("reason", extractionJson.path("reason").asText(""));
-
+            // All required fields present — build confirmation
             sessionForms.put(sessionId, formData);
 
             // Build confirmation message

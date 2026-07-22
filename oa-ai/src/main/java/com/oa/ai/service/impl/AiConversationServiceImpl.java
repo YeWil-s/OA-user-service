@@ -12,7 +12,10 @@ import com.oa.common.exception.BusinessException;
 import com.oa.common.result.ResultCode;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class AiConversationServiceImpl extends ServiceImpl<AiConversationMapper, AiConversation> implements IAiConversationService {
@@ -27,6 +30,24 @@ public class AiConversationServiceImpl extends ServiceImpl<AiConversationMapper,
         conv.setCategory(category);
         conv.setTokensUsed(tokensUsed);
         baseMapper.insert(conv);
+    }
+
+    @Override
+    public List<Map<String, String>> getRecentHistory(String sessionId, Long userId, int maxTurns) {
+        LambdaQueryWrapper<AiConversation> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(AiConversation::getSessionId, sessionId)
+                .eq(AiConversation::getUserId, userId)
+                .orderByDesc(AiConversation::getCreateTime)
+                .last("LIMIT " + maxTurns);
+        List<AiConversation> list = baseMapper.selectList(wrapper);
+        Collections.reverse(list);
+
+        List<Map<String, String>> history = new ArrayList<>();
+        for (AiConversation conv : list) {
+            history.add(Map.of("role", "user", "content", conv.getQuestion()));
+            history.add(Map.of("role", "assistant", "content", conv.getAnswer()));
+        }
+        return history;
     }
 
     @Override
