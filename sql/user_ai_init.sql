@@ -148,6 +148,8 @@ CREATE TABLE ai_conversation (
     category    TINYINT     NOT NULL             COMMENT '类别: 1=智能填单, 2=数据分析, 3=知识问答',
     tokens_used INT         NOT NULL DEFAULT 0   COMMENT '消耗Token数',
     create_time DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    update_time DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    is_deleted  TINYINT     NOT NULL DEFAULT 0   COMMENT '逻辑删除: 0=未删除, 1=已删除',
     PRIMARY KEY (id),
     KEY idx_user (user_id),
     KEY idx_session (session_id)

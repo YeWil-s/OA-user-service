@@ -1,10 +1,13 @@
 import { http } from './http'
 import type {
   ApprovalStats,
+  Asset,
+  AssetRecord,
   AttendanceTrend,
   DeptMetric,
   DeptNode,
   Employee,
+  EmployeeArchive,
   LoginUser,
   MenuNode,
   Message,
@@ -12,6 +15,7 @@ import type {
   PageResult,
   Position,
   Role,
+  StaffChange,
   VisualOverview
 } from './types'
 
@@ -65,4 +69,25 @@ export const visualApi = {
   approvalStats: (month?: string) => http.get<unknown, ApprovalStats>('/api/visual/dashboard/approval-stats', { params: { month } }),
   approvalSpeed: (month?: string) => http.get<unknown, Array<{ deptId: number; deptName: string; totalApplications: number; avgApprovalHours: number }>>('/api/visual/dashboard/approval-speed', { params: { month } }),
   sync: (month?: string) => http.post('/api/visual/statistics/sync', null, { params: { month } })
+}
+
+export const assetApi = {
+  // 资产管理
+  assets: (params: Record<string, unknown>) => http.get<unknown, PageResult<Asset>>('/api/asset/assets', { params }),
+  assetDetail: (id: number) => http.get<unknown, Asset>(`/api/asset/assets/${id}`),
+  createAsset: (payload: Partial<Asset>) => http.post('/api/asset/assets', payload),
+  updateAsset: (id: number, payload: Partial<Asset>) => http.put(`/api/asset/assets/${id}`, payload),
+  scrapAsset: (id: number) => http.delete(`/api/asset/assets/${id}`),
+  // 领用归还
+  borrow: (payload: { assetId: number; userId: number; borrowDate?: string; expectReturnDate?: string }) => http.post<unknown, AssetRecord>('/api/asset/borrow', payload),
+  returnAsset: (recordId: number) => http.put(`/api/asset/borrow/${recordId}/return`),
+  records: (params: Record<string, unknown>) => http.get<unknown, PageResult<AssetRecord>>('/api/asset/records', { params }),
+  // 人事变动
+  staffChanges: (params: Record<string, unknown>) => http.get<unknown, PageResult<StaffChange>>('/api/asset/staff/changes', { params }),
+  createStaffChange: (payload: Partial<StaffChange>) => http.post('/api/asset/staff/changes', payload),
+  updateStaffChange: (id: number, payload: Partial<StaffChange>) => http.put(`/api/asset/staff/changes/${id}`, payload),
+  deleteStaffChange: (id: number) => http.delete(`/api/asset/staff/changes/${id}`),
+  // 合同管理
+  contracts: (params: Record<string, unknown>) => http.get<unknown, PageResult<EmployeeArchive>>('/api/asset/contracts', { params }),
+  expiringContracts: (days?: number) => http.get<unknown, PageResult<EmployeeArchive>>('/api/asset/contracts/expiring', { params: { days: days ?? 30 } })
 }

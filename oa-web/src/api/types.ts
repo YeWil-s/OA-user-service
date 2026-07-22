@@ -147,3 +147,55 @@ export interface ApprovalStats {
   rejectRate: number
   pendingRate: number
 }
+
+// ---- asset-service ----
+export interface Asset {
+  id: number
+  assetName: string
+  assetCode: string
+  category: number
+  model?: string
+  purchaseDate?: string
+  purchasePrice?: number
+  status: number
+  createTime?: string
+}
+
+export interface AssetRecord {
+  id: number
+  assetId: number
+  userId: number
+  borrowDate?: string
+  expectReturnDate?: string
+  actualReturnDate?: string
+  status: number
+  createTime?: string
+}
+
+export interface StaffChange {
+  id: number
+  userId: number
+  changeType: number
+  beforeDept?: number
+  afterDept?: number
+  beforePosition?: number
+  afterPosition?: number
+  changeDate?: string
+  remark?: string
+  createTime?: string
+}
+
+export interface EmployeeArchive {
+  id: number
+  userId: number
+  idCard?: string
+  education?: number
+  major?: string
+  graduateSchool?: string
+  address?: string
+  emergencyContact?: string
+  emergencyPhone?: string
+  contractStart?: string
+  contractEnd?: string
+  createTime?: string
+}
