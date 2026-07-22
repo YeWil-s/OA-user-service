@@ -83,7 +83,7 @@ async function load() {
 
 function openCreate(parentId = 0) { editing.value = null; Object.assign(form, { parentId, menuName: '', menuType: 2, path: '', component: '', permissionCode: '', sortOrder: 0, status: 1, visible: 1 }); dialogOpen.value = true }
 function openEdit(row: MenuNode) { editing.value = row; Object.assign(form, row); dialogOpen.value = true }
-async function save() { if (editing.value?.id) { if (!mocked.value) await systemApi.updateMenu(editing.value.id, form); Object.assign(editing.value, form) } else { if (!mocked.value) await systemApi.addMenu(form); rows.value.push({ id: Date.now(), children: [], ...form } as MenuNode) } dialogOpen.value = false }
-async function remove(row: MenuNode) { if (!mocked.value) await systemApi.deleteMenu(row.id); rows.value = flatRows.value.filter((item) => item.id !== row.id).map(({ level, children, ...rest }) => ({ ...rest, children })) }
+async function save() { if (editing.value?.id) { if (!mocked.value) await systemApi.updateMenu(editing.value.id, form) } else { if (!mocked.value) await systemApi.addMenu(form) } dialogOpen.value = false; await load() }
+async function remove(row: MenuNode) { if (!mocked.value) await systemApi.deleteMenu(row.id); await load() }
 onMounted(load)
 </script>

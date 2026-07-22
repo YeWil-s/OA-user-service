@@ -59,7 +59,7 @@ async function load() {
 }
 
 function openCreate() { Object.assign(form, { userId: 1, msgType: 3, title: '', content: '' }); dialogOpen.value = true }
-async function send() { if (!mocked.value) await noticeApi.createMessage(form); rows.value.unshift({ id: Date.now(), isRead: 0, createTime: new Date().toLocaleString(), ...form } as Message); dialogOpen.value = false }
+async function send() { if (!mocked.value) await noticeApi.createMessage(form); dialogOpen.value = false; await load() }
 async function markRead(row: Message) { if (row.isRead === 1) return; if (!mocked.value) await noticeApi.markRead(row.id); row.isRead = 1 }
 onMounted(load)
 </script>

@@ -1,12 +1,13 @@
 package com.oa.user.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 
 public class MenuDTO {
 
     @NotBlank(message = "菜单名称不能为空")
     private String menuName;
-    @NotBlank(message = "菜单类型不能为空")
+    @NotNull(message = "菜单类型不能为空")
     private Integer menuType;
     private Long parentId;
     private String path;

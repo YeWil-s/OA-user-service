@@ -71,10 +71,10 @@ async function load() {
   mocked.value = result.mocked
 }
 
-function openCreate() { editing.value = null; Object.assign(form, { title: '', noticeType: 1, targetType: 1, targetIds: '', status: 1, content: '' }); dialogOpen.value = true }
+function openCreate() { editing.value = null; Object.assign(form, { title: '', noticeType: 1, targetType: 1, targetIds: [] as number[], status: 1, content: '' }); dialogOpen.value = true }
 function openEdit(row: Notice) { editing.value = row; Object.assign(form, row); dialogOpen.value = true }
-async function save() { if (editing.value?.id) { if (!mocked.value) await noticeApi.update(editing.value.id, form); Object.assign(editing.value, form) } else { if (!mocked.value) await noticeApi.publish(form); rows.value.unshift({ id: Date.now(), createTime: new Date().toLocaleString(), ...form } as Notice) } dialogOpen.value = false }
-async function offline(row: Notice) { if (!mocked.value) await noticeApi.offline(row.id); row.status = 2 }
+async function save() { if (editing.value?.id) { if (!mocked.value) await noticeApi.update(editing.value.id, form) } else { if (!mocked.value) await noticeApi.publish(form) } dialogOpen.value = false; await load() }
+async function offline(row: Notice) { if (!mocked.value) await noticeApi.offline(row.id); await load() }
 onMounted(load)
 </script>
 

@@ -200,17 +200,16 @@ function openEdit(row: Employee) {
 async function save() {
   if (editing.value?.id) {
     if (!mocked.value) await systemApi.updateEmployee(editing.value.id, form)
-    Object.assign(editing.value, form)
   } else {
     if (!mocked.value) await systemApi.addEmployee(form)
-    rows.value.unshift({ id: Date.now(), ...form } as Employee)
   }
   dialogOpen.value = false
+  await load()
 }
 
 async function remove(row: Employee) {
   if (!mocked.value) await systemApi.deleteEmployee(row.id)
-  rows.value = rows.value.filter((item) => item.id !== row.id)
+  await load()
 }
 
 async function resetPassword(row: Employee) {

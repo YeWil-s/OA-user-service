@@ -113,6 +113,7 @@ CREATE TABLE sys_menu (
     status          TINYINT      NOT NULL DEFAULT 1   COMMENT '状态',
     create_time     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     update_time     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    is_deleted      TINYINT      NOT NULL DEFAULT 0   COMMENT '逻辑删除: 0=未删除, 1=已删除',
     PRIMARY KEY (id),
     KEY idx_parent_id (parent_id)
 ) ENGINE=InnoDB COMMENT='菜单/权限表';

@@ -78,7 +78,7 @@ async function load() {
 
 function openCreate() { editing.value = null; Object.assign(form, { positionName: '', positionCode: '', deptId: flatDepts.value[0]?.id, sortOrder: 0, status: 1 }); dialogOpen.value = true }
 function openEdit(row: Position) { editing.value = row; Object.assign(form, row); dialogOpen.value = true }
-async function save() { if (editing.value?.id) { if (!mocked.value) await systemApi.updatePosition(editing.value.id, form); Object.assign(editing.value, form) } else { if (!mocked.value) await systemApi.addPosition(form); rows.value.unshift({ id: Date.now(), ...form } as Position) } dialogOpen.value = false }
-async function remove(row: Position) { if (!mocked.value) await systemApi.deletePosition(row.id); rows.value = rows.value.filter((item) => item.id !== row.id) }
+async function save() { if (editing.value?.id) { if (!mocked.value) await systemApi.updatePosition(editing.value.id, form) } else { if (!mocked.value) await systemApi.addPosition(form) } dialogOpen.value = false; await load() }
+async function remove(row: Position) { if (!mocked.value) await systemApi.deletePosition(row.id); await load() }
 onMounted(load)
 </script>

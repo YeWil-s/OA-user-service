@@ -110,17 +110,16 @@ function openEdit(row: DeptNode) {
 async function save() {
   if (editing.value?.id) {
     if (!mocked.value) await systemApi.updateDept(editing.value.id, form)
-    Object.assign(editing.value, form)
   } else {
     if (!mocked.value) await systemApi.addDept(form)
-    rows.value.push({ id: Date.now(), children: [], ...form } as DeptNode)
   }
   dialogOpen.value = false
+  await load()
 }
 
 async function remove(row: DeptNode) {
   if (!mocked.value) await systemApi.deleteDept(row.id)
-  rows.value = flatRows.value.filter((item) => item.id !== row.id).map(({ level, children, ...rest }) => ({ ...rest, children }))
+  await load()
 }
 
 onMounted(load)

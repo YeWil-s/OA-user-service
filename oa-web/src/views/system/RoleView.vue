@@ -97,8 +97,8 @@ async function load() {
 
 function openCreate() { editing.value = null; Object.assign(form, { roleName: '', roleCode: '', roleDesc: '', dataScope: 3, sortOrder: 0, status: 1 }); dialogOpen.value = true }
 function openEdit(row: Role) { editing.value = row; Object.assign(form, row); dialogOpen.value = true }
-async function save() { if (editing.value?.id) { if (!mocked.value) await systemApi.updateRole(editing.value.id, form); Object.assign(editing.value, form) } else { if (!mocked.value) await systemApi.addRole(form); rows.value.unshift({ id: Date.now(), ...form } as Role) } dialogOpen.value = false }
-async function remove(row: Role) { if (!mocked.value) await systemApi.deleteRole(row.id); rows.value = rows.value.filter((item) => item.id !== row.id) }
+async function save() { if (editing.value?.id) { if (!mocked.value) await systemApi.updateRole(editing.value.id, form) } else { if (!mocked.value) await systemApi.addRole(form) } dialogOpen.value = false; await load() }
+async function remove(row: Role) { if (!mocked.value) await systemApi.deleteRole(row.id); await load() }
 async function openAssign(row: Role) { assigning.value = row; const result = mocked.value ? { data: [11, 12], mocked: true } : await withFallback(systemApi.roleMenus(row.id), []); checkedMenuIds.value = result.data; assignOpen.value = true }
 async function saveAssign() { if (assigning.value && !mocked.value) await systemApi.assignRoleMenus(assigning.value.id, checkedMenuIds.value); assignOpen.value = false }
 onMounted(load)
