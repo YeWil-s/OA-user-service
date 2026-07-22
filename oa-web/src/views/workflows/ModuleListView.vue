@@ -68,15 +68,62 @@
       <template #footer><button class="btn" @click="dialogOpen = false">取消</button><button class="btn primary" :disabled="saving" @click="save">{{ saving ? '保存中' : '保存' }}</button></template>
     </ModalDialog>
 
-    <ModalDialog v-model="detailOpen" title="详情" width="720px">
-      <pre class="detail-json">{{ detailText }}</pre>
+    <ModalDialog v-model="detailOpen" :title="moduleKey === 'attendanceRecords' ? '考勤记录详情' : '详情'" width="760px">
+      <div v-if="moduleKey === 'attendanceRecords'" class="attendance-detail">
+        <header class="attendance-profile">
+          <span class="attendance-avatar"><UserRound /></span>
+          <div>
+            <span class="detail-eyebrow">ATTENDANCE RECORD</span>
+            <h3>{{ detailValue('realName') }}</h3>
+            <p>员工编号 {{ detailValue('userId') }} · {{ detailValue('deptName') }}</p>
+          </div>
+          <span class="attendance-status"><CheckCircle2 />{{ detailValue('statusLabel') }}</span>
+        </header>
+
+        <section class="detail-section">
+          <header><BriefcaseBusiness /><div><strong>人员与班次</strong><span>EMPLOYEE & SHIFT</span></div></header>
+          <div class="detail-grid">
+            <div><span>所属部门</span><strong>{{ detailValue('deptName') }}</strong></div>
+            <div><span>执行班次</span><strong>{{ detailValue('shiftName') }}</strong></div>
+            <div><span>考勤日期</span><strong>{{ detailValue('recordDate') }}</strong></div>
+            <div><span>打卡类型</span><strong>{{ detailValue('punchType') }}</strong></div>
+          </div>
+        </section>
+
+        <section class="detail-section">
+          <header><Clock3 /><div><strong>打卡时间</strong><span>PUNCH TIMELINE</span></div></header>
+          <div class="punch-timeline">
+            <article><i class="timeline-dot start" /><span>上班打卡</span><strong>{{ detailValue('punchInTimeText') }}</strong><small>{{ detailValue('punchInTime') }}</small></article>
+            <span class="timeline-line" />
+            <article><i class="timeline-dot end" /><span>下班打卡</span><strong>{{ detailValue('punchOutTimeText') }}</strong><small>{{ detailValue('punchOutTime') }}</small></article>
+          </div>
+        </section>
+
+        <section class="detail-section">
+          <header><Timer /><div><strong>考勤统计</strong><span>ATTENDANCE METRICS</span></div></header>
+          <div class="metric-grid">
+            <div><span>迟到时长</span><strong class="warning-value">{{ detailValue('lateMinutes', ' 分钟') }}</strong></div>
+            <div><span>早退时长</span><strong>{{ detailValue('earlyMinutes', ' 分钟') }}</strong></div>
+            <div><span>有效工时</span><strong>{{ detailValue('workHours', ' 小时') }}</strong></div>
+          </div>
+        </section>
+
+        <section class="detail-section environment-section">
+          <header><MapPin /><div><strong>打卡环境</strong><span>LOCATION & DEVICE</span></div></header>
+          <div class="environment-grid">
+            <div><MapPin /><span><small>位置</small><strong>{{ detailValue('location') }}</strong></span></div>
+            <div><Monitor /><span><small>设备信息</small><strong>{{ detailValue('deviceInfo') }}</strong></span></div>
+          </div>
+        </section>
+      </div>
+      <pre v-else class="detail-json">{{ detailText }}</pre>
       <template #footer><button class="btn primary" @click="detailOpen = false">关闭</button></template>
     </ModalDialog>
   </section>
 </template>
 
 <script setup lang="ts">
-import { Eye, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-vue-next'
+import { BriefcaseBusiness, CheckCircle2, Clock3, Eye, MapPin, Monitor, Pencil, Plus, RefreshCw, Timer, Trash2, UserRound } from 'lucide-vue-next'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import ModalDialog from '@/components/ModalDialog.vue'
@@ -121,6 +168,7 @@ const message = ref('')
 const dialogOpen = ref(false)
 const detailOpen = ref(false)
 const detailText = ref('')
+const detailData = ref<TableRow | null>(null)
 const editingId = ref<number | null>(null)
 const shiftForm = reactive<Partial<Shift>>({})
 const assetForm = reactive<Partial<Asset>>({})
@@ -212,6 +260,12 @@ const timeText = (value?: string | null) => value ? (value.includes('T') ? value
 
 function rowValue(row: TableRow, key: string) {
   return row[key] ?? '-'
+}
+
+function detailValue(key: string, suffix = '') {
+  const value = detailData.value?.[key]
+  if (value === undefined || value === null || value === '') return '-'
+  return `${String(value)}${suffix}`
 }
 
 function mapAttendance(row: AttendanceRecord): TableRow {
@@ -325,6 +379,7 @@ async function openDetail(row: TableRow) {
     } else if (moduleKey.value === 'assets') {
       detail = await assetApi.assetDetail(row.id)
     }
+    detailData.value = detail && typeof detail === 'object' ? detail as TableRow : row
     detailText.value = JSON.stringify(detail, null, 2)
     detailOpen.value = true
   } catch (err) {
@@ -419,6 +474,258 @@ onMounted(load)
   grid-column: 1 / -1;
 }
 
+.attendance-detail {
+  display: grid;
+  gap: 22px;
+}
+
+.attendance-profile {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.attendance-avatar {
+  width: 50px;
+  height: 50px;
+  display: grid;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--primary) 32%, var(--border));
+  border-radius: 8px;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--primary) 18%, transparent), color-mix(in srgb, var(--violet) 12%, transparent));
+  color: var(--primary-soft);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 10px 24px var(--primary-glow);
+}
+
+.attendance-avatar svg {
+  width: 23px;
+  height: 23px;
+}
+
+.detail-eyebrow {
+  color: var(--faint);
+  font-size: 9px;
+  font-weight: 780;
+  letter-spacing: 1.2px;
+}
+
+.attendance-profile h3 {
+  margin: 5px 0 0;
+  color: var(--text);
+  font-size: 19px;
+}
+
+.attendance-profile p {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.attendance-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border: 1px solid color-mix(in srgb, var(--warning) 24%, var(--border));
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--warning) 10%, transparent);
+  color: var(--warning);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.attendance-status svg {
+  width: 14px;
+  height: 14px;
+}
+
+.detail-section {
+  display: grid;
+  gap: 13px;
+}
+
+.detail-section > header {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--primary-soft);
+}
+
+.detail-section > header > svg {
+  width: 17px;
+  height: 17px;
+}
+
+.detail-section > header div {
+  display: grid;
+  gap: 2px;
+}
+
+.detail-section > header strong {
+  color: var(--text);
+  font-size: 12px;
+}
+
+.detail-section > header span {
+  color: var(--faint);
+  font-size: 8px;
+  letter-spacing: 1px;
+}
+
+.detail-grid,
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--surface-soft) 72%, transparent);
+  overflow: hidden;
+}
+
+.detail-grid > div,
+.metric-grid > div {
+  min-width: 0;
+  display: grid;
+  gap: 7px;
+  padding: 13px;
+  border-right: 1px solid var(--border);
+}
+
+.detail-grid > div:last-child,
+.metric-grid > div:last-child {
+  border-right: 0;
+}
+
+.detail-grid span,
+.metric-grid span {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.detail-grid strong,
+.metric-grid strong {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.metric-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.metric-grid .warning-value {
+  color: var(--warning);
+}
+
+.punch-timeline {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(40px, 0.3fr) minmax(0, 1fr);
+  align-items: center;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--surface-soft) 72%, transparent);
+}
+
+.punch-timeline article {
+  position: relative;
+  display: grid;
+  gap: 4px;
+  padding-left: 18px;
+}
+
+.punch-timeline article > span {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.punch-timeline article > strong {
+  color: var(--text);
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+}
+
+.punch-timeline article > small {
+  overflow: hidden;
+  color: var(--faint);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timeline-dot {
+  position: absolute;
+  top: 5px;
+  left: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--success);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--success) 60%, transparent);
+}
+
+.timeline-dot.end {
+  background: var(--info);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--info) 60%, transparent);
+}
+
+.timeline-line {
+  height: 1px;
+  margin: 0 12px;
+  background: linear-gradient(90deg, var(--success), var(--info));
+  opacity: 0.45;
+}
+
+.environment-grid {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.8fr) minmax(0, 1.4fr);
+  gap: 10px;
+}
+
+.environment-grid > div {
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--surface-soft) 72%, transparent);
+  color: var(--cyan);
+}
+
+.environment-grid > div > svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  margin-top: 2px;
+}
+
+.environment-grid span {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.environment-grid small {
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.environment-grid strong {
+  overflow-wrap: anywhere;
+  color: var(--text);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.55;
+}
+
 .detail-json {
   max-height: 460px;
   overflow: auto;
@@ -428,5 +735,47 @@ onMounted(load)
   background: var(--surface-soft);
   color: var(--text);
   white-space: pre-wrap;
+}
+
+@media (max-width: 640px) {
+  .attendance-profile {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .attendance-status {
+    grid-column: 1 / -1;
+    width: max-content;
+  }
+
+  .detail-grid,
+  .metric-grid,
+  .environment-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .detail-grid > div:nth-child(2),
+  .metric-grid > div:nth-child(2) {
+    border-right: 0;
+  }
+
+  .metric-grid > div:last-child {
+    grid-column: 1 / -1;
+    border-top: 1px solid var(--border);
+  }
+
+  .environment-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .punch-timeline {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .timeline-line {
+    width: 1px;
+    height: 18px;
+    margin: 0 0 0 4px;
+  }
 }
 </style>

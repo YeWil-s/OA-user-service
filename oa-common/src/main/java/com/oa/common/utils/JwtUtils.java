@@ -98,4 +98,9 @@ public class JwtUtils {
         }
         return Long.valueOf(String.valueOf(deptId));
     }
+
+    public long getRemainingTtl(String token) {
+        Date expiration = parseToken(token).getExpiration();
+        return expiration.getTime() - System.currentTimeMillis();
+    }
 }

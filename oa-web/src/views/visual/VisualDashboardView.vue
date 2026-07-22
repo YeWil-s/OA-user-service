@@ -91,7 +91,7 @@
 
     <section class="cockpit-main">
       <aside class="left-column">
-        <ChartPanel class="screen-chart" title="组织人员分布" subtitle="各部门在职人数占比" :option="deptPie" :height="190" :loading="loading" />
+        <ChartPanel class="screen-chart dept-chart" title="组织人员分布" subtitle="各部门在职人数占比" :option="deptPie" :height="118" :loading="loading" />
 
         <section class="screen-panel ranking-panel">
           <header class="module-header">
@@ -379,7 +379,15 @@ function syncFullscreenState() {
 
 const deptPie = computed(() => ({
   tooltip: { trigger: 'item' },
-  series: [{ type: 'pie', radius: ['42%', '70%'], data: depts.value.map((item) => ({ name: item.deptName, value: item.value })), color: ['#3b82f6', '#8b5cf6', '#06b6d4', '#22c55e', '#ec4899'] }]
+  series: [{
+    type: 'pie',
+    radius: ['28%', '48%'],
+    center: ['50%', '50%'],
+    avoidLabelOverlap: true,
+    label: { show: false },
+    data: depts.value.map((item) => ({ name: item.deptName, value: item.value })),
+    color: ['#3b82f6', '#8b5cf6', '#06b6d4', '#22c55e', '#ec4899']
+  }]
 }))
 
 const attendanceLine = computed(() => ({
@@ -961,6 +969,22 @@ onUnmounted(() => {
 
 .cockpit-shell :deep(.screen-chart:hover) {
   transform: none;
+}
+
+.left-column :deep(.screen-chart) {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.left-column :deep(.chart-canvas) {
+  min-height: 0;
+  height: 100% !important;
+}
+
+.left-column :deep(.dept-chart .chart-canvas) {
+  max-height: 118px;
+  align-self: center;
 }
 
 .cockpit-shell :deep(.chart-head) {

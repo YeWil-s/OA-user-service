@@ -38,7 +38,14 @@ public enum ResultCode {
 
     // ai-service 50001-50999
     AI_SERVICE_ERROR(50001, "AI服务调用失败"),
-    AI_QUOTA_EXCEEDED(50002, "AI调用次数超限");
+    AI_QUOTA_EXCEEDED(50002, "AI调用次数超限"),
+    AGENT_INTENT_UNKNOWN(50010, "无法识别意图，请重新描述"),
+    AGENT_EXTRACTION_FAILED(50011, "信息提取失败，请补充信息"),
+    AGENT_FORM_INCOMPLETE(50012, "表单信息不完整"),
+    KNOWLEDGE_NOT_FOUND(50013, "知识文档不存在"),
+    EMBEDDING_SERVICE_ERROR(50014, "向量嵌入服务异常"),
+    VECTOR_SEARCH_ERROR(50015, "向量检索异常"),
+    SESSION_NOT_FOUND(50016, "会话不存在");
 
     private final int code;
     private final String message;

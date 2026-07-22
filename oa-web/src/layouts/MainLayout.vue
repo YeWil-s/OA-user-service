@@ -367,8 +367,11 @@ async function logout() {
 }
 
 .sidebar-collapsed .brand {
+  height: 116px;
+  flex-direction: column;
   justify-content: center;
-  padding: 0;
+  gap: 10px;
+  padding: 10px 0;
 }
 
 .sidebar-collapsed .brand-copy,
@@ -379,13 +382,14 @@ async function logout() {
   pointer-events: none;
 }
 
+.sidebar-collapsed .brand-copy {
+  display: none;
+}
+
 .sidebar-collapsed .collapse-button {
-  position: absolute;
-  top: 58px;
-  left: 50%;
-  z-index: 2;
+  position: static;
   margin: 0;
-  transform: translateX(-50%);
+  transform: none;
 }
 
 .sidebar-collapsed .nav {
@@ -497,7 +501,10 @@ async function logout() {
   }
 
   .sidebar-collapsed .brand {
+    height: 76px;
+    flex-direction: row;
     justify-content: flex-start;
+    gap: 12px;
     padding: 0 16px;
   }
 
@@ -507,6 +514,10 @@ async function logout() {
     width: auto;
     opacity: 1;
     pointer-events: auto;
+  }
+
+  .sidebar-collapsed .brand-copy {
+    display: block;
   }
 
   .sidebar-collapsed .collapse-button {

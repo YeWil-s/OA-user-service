@@ -28,24 +28,16 @@ target/
 build/
 !**/src/main/**/build/
 !**/src/test/**/build/
-/OA-System-AI
+
+### VS Code ###
+.vscode/
 
 ### Frontend ###
 node_modules/
 dist/
-oa-web/node_modules/
-oa-web/dist/
-oa-web/src/*.tsbuildinfo
-oa-web/*.log
+*.lock
+pnpm-lock.yaml
+package-lock.json
 
-### Local private runtime config ###
-.env
-.env.*
-!.env.example
-**/src/main/resources/application-local.yml
-**/src/main/resources/application-local.yaml
-**/src/main/resources/application-private.yml
-**/src/main/resources/application-private.yaml
-
-### VS Code ###
-.vscode/
+### AI module secrets ###
+oa-ai/src/main/resources/application.yml

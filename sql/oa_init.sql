@@ -113,6 +113,7 @@ CREATE TABLE sys_menu (
     status          TINYINT      NOT NULL DEFAULT 1   COMMENT '状态',
     create_time     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     update_time     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    is_deleted      TINYINT      NOT NULL DEFAULT 0   COMMENT '逻辑删除: 0=未删除, 1=已删除',
     PRIMARY KEY (id),
     KEY idx_parent_id (parent_id)
 ) ENGINE=InnoDB COMMENT='菜单/权限表';
@@ -390,6 +391,8 @@ CREATE TABLE ai_conversation (
     category    TINYINT     NOT NULL             COMMENT '类别: 1=智能填单, 2=数据分析, 3=知识问答',
     tokens_used INT         NOT NULL DEFAULT 0   COMMENT '消耗Token数',
     create_time DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    update_time DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    is_deleted  TINYINT     NOT NULL DEFAULT 0   COMMENT '逻辑删除: 0=未删除, 1=已删除',
     PRIMARY KEY (id),
     KEY idx_user (user_id),
     KEY idx_session (session_id)
@@ -498,10 +501,10 @@ INSERT INTO sys_position (id, position_name, position_code, dept_id, sort_order)
 -- 账号: wangwu / 密码: 123456
 -- BCrypt在线生成, 10轮加密
 INSERT INTO sys_user (id, username, password, real_name, phone, email, gender, dept_id, position_id, entry_date, status) VALUES
-(1, 'admin',    '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5Eh', '系统管理员', '13800000000', 'admin@oa.com',    1, 1, 1, '2024-01-01', 1),
-(2, 'zhangsan', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5Eh', '张三',       '13800000001', 'zhangsan@oa.com', 1, 2, 3, '2024-06-01', 1),
-(3, 'lisi',     '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5Eh', '李四',       '13800000002', 'lisi@oa.com',     1, 3, 5, '2024-08-15', 1),
-(4, 'wangwu',   '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5Eh', '王五',       '13800000003', 'wangwu@oa.com',   1, 2, 4, '2025-01-10', 1);
+(1, 'admin',    '$2a$10$ibW83Nv5NmQh1e1TlU8tdOazMzoe4aPsQRIJ2y9N6fqXuc7.FxiRK', '系统管理员', '13800000000', 'admin@oa.com',    1, 1, 1, '2024-01-01', 1),
+(2, 'zhangsan', '$2a$10$ibW83Nv5NmQh1e1TlU8tdOazMzoe4aPsQRIJ2y9N6fqXuc7.FxiRK', '张三',       '13800000001', 'zhangsan@oa.com', 1, 2, 3, '2024-06-01', 1),
+(3, 'lisi',     '$2a$10$ibW83Nv5NmQh1e1TlU8tdOazMzoe4aPsQRIJ2y9N6fqXuc7.FxiRK', '李四',       '13800000002', 'lisi@oa.com',     1, 3, 5, '2024-08-15', 1),
+(4, 'wangwu',   '$2a$10$ibW83Nv5NmQh1e1TlU8tdOazMzoe4aPsQRIJ2y9N6fqXuc7.FxiRK', '王五',       '13800000003', 'wangwu@oa.com',   1, 2, 4, '2025-01-10', 1);
 
 -- 角色
 INSERT INTO sys_role (id, role_name, role_code, role_desc, data_scope, sort_order) VALUES

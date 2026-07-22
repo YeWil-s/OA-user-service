@@ -7,11 +7,13 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.oa.common.exception.BusinessException;
 import com.oa.common.result.ResultCode;
 import com.oa.common.utils.JwtUtils;
+import com.oa.common.utils.RedisUtils;
 import com.oa.user.dto.EmployeeDTO;
 import com.oa.user.dto.ResetPasswordDTO;
 import com.oa.user.entity.SysUser;
 import com.oa.user.mapper.SysUserMapper;
 import com.oa.user.service.ISysUserService;
+import com.oa.user.vo.CurrentUserVO;
 import com.oa.user.vo.LoginVO;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -27,11 +29,14 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     private final SysUserMapper sysUserMapper;
     private final JwtUtils jwtUtils;
     private final BCryptPasswordEncoder passwordEncoder;
+    private final RedisUtils redisUtils;
 
-    public SysUserServiceImpl(SysUserMapper sysUserMapper, JwtUtils jwtUtils, BCryptPasswordEncoder passwordEncoder) {
+    public SysUserServiceImpl(SysUserMapper sysUserMapper, JwtUtils jwtUtils,
+                              BCryptPasswordEncoder passwordEncoder, RedisUtils redisUtils) {
         this.sysUserMapper = sysUserMapper;
         this.jwtUtils = jwtUtils;
         this.passwordEncoder = passwordEncoder;
+        this.redisUtils = redisUtils;
     }
 
     @Override
@@ -57,6 +62,45 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         this.updateById(user);
 
         return new LoginVO(token, user.getId(), user.getUsername(), user.getRealName(), user.getAvatarUrl(), roles, permissions);
+    }
+
+    @Override
+    public void logout(String token) {
+        if (token.startsWith("Bearer ")) {
+            token = token.substring(7);
+        }
+        long remainingTtl = jwtUtils.getRemainingTtl(token);
+        if (remainingTtl > 0) {
+            redisUtils.set("jwt:blacklist:" + token, "1", java.time.Duration.ofMillis(remainingTtl));
+        }
+    }
+
+    @Override
+    public CurrentUserVO getCurrentUser(String token) {
+        if (token.startsWith("Bearer ")) {
+            token = token.substring(7);
+        }
+        if (!jwtUtils.validateToken(token)) {
+            throw new BusinessException(ResultCode.UNAUTHORIZED);
+        }
+        Long userId = jwtUtils.getUserId(token);
+        SysUser user = this.getById(userId);
+        if (user == null || user.getStatus() == 0) {
+            throw new BusinessException(ResultCode.USER_NOT_FOUND);
+        }
+
+        List<String> roles = jwtUtils.getRoles(token);
+        List<String> permissions = jwtUtils.getPermissions(token);
+
+        CurrentUserVO vo = new CurrentUserVO();
+        vo.setUserId(user.getId());
+        vo.setUsername(user.getUsername());
+        vo.setRealName(user.getRealName());
+        vo.setDeptId(user.getDeptId());
+        vo.setAvatarUrl(user.getAvatarUrl());
+        vo.setRoles(roles);
+        vo.setPermissions(permissions);
+        return vo;
     }
 
     @Override

@@ -41,4 +41,8 @@ public class RedisUtils {
     public void expire(String key, Duration timeout) {
         stringRedisTemplate.expire(key, timeout);
     }
+
+    public Long increment(String key) {
+        return stringRedisTemplate.opsForValue().increment(key);
+    }
 }
