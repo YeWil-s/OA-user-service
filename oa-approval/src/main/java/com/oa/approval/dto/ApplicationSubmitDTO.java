@@ -4,6 +4,7 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -16,6 +17,8 @@ public class ApplicationSubmitDTO {
     @Max(value = 3, message = "申请类型只能是1=请假、2=加班、3=外出")
     private Integer appType;
 
+    @Min(value = 1, message = "请假类型只能是1到5")
+    @Max(value = 5, message = "请假类型只能是1到5")
     private Integer leaveType;
 
     @NotNull(message = "开始时间不能为空")
@@ -25,9 +28,11 @@ public class ApplicationSubmitDTO {
     private LocalDateTime endTime;
 
     @NotBlank(message = "申请原因不能为空")
+    @Size(max = 500, message = "申请原因不能超过500个字符")
     private String reason;
 
-    private List<String> attachments = new ArrayList<>();
+    @Size(max = 20, message = "附件数量不能超过20个")
+    private List<@Size(max = 500, message = "单个附件地址不能超过500个字符") String> attachments = new ArrayList<>();
 
     public Integer getAppType() { return appType; }
     public void setAppType(Integer appType) { this.appType = appType; }

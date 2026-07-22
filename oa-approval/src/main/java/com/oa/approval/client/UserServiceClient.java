@@ -1,14 +1,13 @@
 package com.oa.approval.client;
 
+import com.oa.approval.config.FeignClientConfig;
 import com.oa.common.exception.BusinessException;
+import com.oa.common.result.Result;
 import com.oa.common.result.ResultCode;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.ResponseEntity;
-import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestClientException;
-import org.springframework.web.client.RestTemplate;
+import feign.FeignException;
+import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -18,40 +17,33 @@ import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-@Component
-public class UserServiceClient {
+@FeignClient(
+        name = "oa-user-service",
+        contextId = "approvalUserServiceClient",
+        path = "/api/user",
+        configuration = FeignClientConfig.class
+)
+public interface UserServiceClient {
 
-    private final RestTemplate restTemplate;
-    private final String baseUrl;
+    @GetMapping("/employees/{userId}")
+    Result<UserInfo> getUserResponse(@PathVariable("userId") Long userId);
 
-    public UserServiceClient(RestTemplate restTemplate,
-                             @Value("${oa.user-service.base-url:http://localhost:8081}") String baseUrl) {
-        this.restTemplate = restTemplate;
-        this.baseUrl = trimSlash(baseUrl);
-    }
+    @GetMapping("/depts")
+    Result<List<DeptInfo>> getDeptTreeResponse();
 
-    public UserInfo getUser(Long userId) {
+    default UserInfo getUser(Long userId) {
         if (userId == null) {
             return null;
         }
         try {
-            ResponseEntity<RemoteResult<UserInfo>> response = restTemplate.exchange(
-                    baseUrl + "/api/user/employees/" + userId,
-                    HttpMethod.GET,
-                    null,
-                    new ParameterizedTypeReference<RemoteResult<UserInfo>>() {
-                    });
-            RemoteResult<UserInfo> body = response.getBody();
-            if (body == null || body.getCode() != 200) {
-                return null;
-            }
-            return body.getData();
-        } catch (RestClientException ex) {
-            throw new BusinessException(ResultCode.INTERNAL_ERROR, "调用用户服务失败: " + ex.getMessage());
+            Result<UserInfo> result = getUserResponse(userId);
+            return isSuccess(result) ? result.getData() : null;
+        } catch (FeignException ex) {
+            throw userServiceUnavailable(ex);
         }
     }
 
-    public UserInfo requireActiveUser(Long userId) {
+    default UserInfo requireActiveUser(Long userId) {
         UserInfo user = getUser(userId);
         if (user == null) {
             throw new BusinessException(ResultCode.USER_NOT_FOUND);
@@ -62,7 +54,7 @@ public class UserServiceClient {
         return user;
     }
 
-    public String getUserName(Long userId) {
+    default String getUserName(Long userId) {
         UserInfo user = getUser(userId);
         if (user == null) {
             return "未知用户";
@@ -70,12 +62,12 @@ public class UserServiceClient {
         return user.getRealName() == null ? user.getUsername() : user.getRealName();
     }
 
-    public String getDeptName(Long deptId) {
+    default String getDeptName(Long deptId) {
         DeptInfo dept = mapDepts().get(deptId);
         return dept == null ? "未知部门" : dept.getDeptName();
     }
 
-    public Long resolveApproverId(Long deptId, Long applicantUserId) {
+    default Long resolveApproverId(Long deptId, Long applicantUserId) {
         Map<Long, DeptInfo> deptMap = mapDepts();
         Long currentDeptId = deptId;
         while (currentDeptId != null && currentDeptId > 0) {
@@ -94,11 +86,7 @@ public class UserServiceClient {
         throw new BusinessException(ResultCode.BAD_REQUEST, "未找到可用审批人，请先配置部门主管");
     }
 
-    private boolean isUsableApprover(Long leaderId, Long applicantUserId) {
-        return leaderId != null && leaderId > 0 && !Objects.equals(leaderId, applicantUserId);
-    }
-
-    public Map<Long, UserInfo> mapUsers(List<Long> userIds) {
+    default Map<Long, UserInfo> mapUsers(List<Long> userIds) {
         if (userIds == null || userIds.isEmpty()) {
             return Collections.emptyMap();
         }
@@ -110,26 +98,28 @@ public class UserServiceClient {
                 .collect(Collectors.toMap(UserInfo::getId, Function.identity(), (a, b) -> a));
     }
 
-    private Map<Long, DeptInfo> mapDepts() {
+    default Map<Long, DeptInfo> mapDepts() {
         return flattenDeptTree(getDeptTree()).stream()
                 .collect(Collectors.toMap(DeptInfo::getId, Function.identity(), (a, b) -> a));
     }
 
+    private boolean isUsableApprover(Long leaderId, Long applicantUserId) {
+        if (leaderId == null || leaderId <= 0 || Objects.equals(leaderId, applicantUserId)) {
+            return false;
+        }
+        UserInfo leader = getUser(leaderId);
+        return leader != null && leader.isActive();
+    }
+
     private List<DeptInfo> getDeptTree() {
         try {
-            ResponseEntity<RemoteResult<List<DeptInfo>>> response = restTemplate.exchange(
-                    baseUrl + "/api/user/depts",
-                    HttpMethod.GET,
-                    null,
-                    new ParameterizedTypeReference<RemoteResult<List<DeptInfo>>>() {
-                    });
-            RemoteResult<List<DeptInfo>> body = response.getBody();
-            if (body == null || body.getCode() != 200 || body.getData() == null) {
+            Result<List<DeptInfo>> result = getDeptTreeResponse();
+            if (!isSuccess(result) || result.getData() == null) {
                 return Collections.emptyList();
             }
-            return body.getData();
-        } catch (RestClientException ex) {
-            throw new BusinessException(ResultCode.INTERNAL_ERROR, "调用用户服务失败: " + ex.getMessage());
+            return result.getData();
+        } catch (FeignException ex) {
+            throw userServiceUnavailable(ex);
         }
     }
 
@@ -145,27 +135,18 @@ public class UserServiceClient {
         return result;
     }
 
-    private String trimSlash(String value) {
-        if (value != null && value.endsWith("/")) {
-            return value.substring(0, value.length() - 1);
+    private boolean isSuccess(Result<?> result) {
+        return result != null && result.getCode() == ResultCode.SUCCESS.getCode();
+    }
+
+    private BusinessException userServiceUnavailable(FeignException ex) {
+        if (ex.status() == 401) {
+            return new BusinessException(ResultCode.UNAUTHORIZED, "User service authentication failed");
         }
-        return value;
+        return new BusinessException(ResultCode.INTERNAL_ERROR, "调用用户服务失败: " + ex.getMessage());
     }
 
-    public static class RemoteResult<T> {
-        private int code;
-        private String message;
-        private T data;
-
-        public int getCode() { return code; }
-        public void setCode(int code) { this.code = code; }
-        public String getMessage() { return message; }
-        public void setMessage(String message) { this.message = message; }
-        public T getData() { return data; }
-        public void setData(T data) { this.data = data; }
-    }
-
-    public static class UserInfo {
+    class UserInfo {
         private Long id;
         private String username;
         private String realName;
@@ -185,7 +166,7 @@ public class UserServiceClient {
         public boolean isActive() { return !Integer.valueOf(0).equals(status); }
     }
 
-    public static class DeptInfo {
+    class DeptInfo {
         private Long id;
         private Long parentId;
         private String deptName;

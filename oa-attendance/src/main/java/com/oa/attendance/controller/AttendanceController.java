@@ -13,6 +13,8 @@ import com.oa.common.result.Result;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -38,8 +40,8 @@ public class AttendanceController {
 
     @Operation(summary = "班次分页列表")
     @GetMapping("/shifts")
-    public Result<IPage<ShiftVO>> pageShifts(@RequestParam(defaultValue = "1") Integer pageNum,
-                                             @RequestParam(defaultValue = "20") Integer pageSize) {
+    public Result<IPage<ShiftVO>> pageShifts(@RequestParam(defaultValue = "1") @Min(value = 1, message = "pageNum最小为1") Integer pageNum,
+                                             @RequestParam(defaultValue = "20") @Min(value = 1, message = "pageSize最小为1") @Max(value = 100, message = "pageSize最大为100") Integer pageSize) {
         return Result.success(attendanceService.pageShifts(pageNum, pageSize));
     }
 
@@ -77,13 +79,13 @@ public class AttendanceController {
 
     @Operation(summary = "上班打卡")
     @PostMapping("/punch/in")
-    public Result<PunchVO> punchIn(@RequestBody(required = false) PunchDTO dto) {
+    public Result<PunchVO> punchIn(@Valid @RequestBody(required = false) PunchDTO dto) {
         return Result.success(attendanceService.punchIn(dto));
     }
 
     @Operation(summary = "下班打卡")
     @PostMapping("/punch/out")
-    public Result<PunchVO> punchOut(@RequestBody(required = false) PunchDTO dto) {
+    public Result<PunchVO> punchOut(@Valid @RequestBody(required = false) PunchDTO dto) {
         return Result.success(attendanceService.punchOut(dto));
     }
 

@@ -5,123 +5,83 @@
         <h2 class="page-title">合同管理</h2>
         <p class="page-subtitle">合同到期预警与续签状态</p>
       </div>
-      <div class="toolbar">
-        <select v-model.number="filterDays" class="select" @change="loadExpiring(1)">
-          <option :value="30">30天内到期</option>
-          <option :value="60">60天内到期</option>
-          <option :value="90">90天内到期</option>
-        </select>
-        <button class="btn ghost" :class="{ active: tab === 'expiring' }" @click="tab = 'expiring'; loadExpiring(1)">到期预警</button>
-        <button class="btn ghost" :class="{ active: tab === 'all' }" @click="tab = 'all'; loadAll(1)">全部合同</button>
-      </div>
+      <button class="btn" :disabled="loading" @click="load"><RefreshCw class="icon" />{{ loading ? '刷新中' : '刷新' }}</button>
     </div>
 
-    <div v-if="loading" class="empty">加载中...</div>
+    <p v-if="error" class="error-banner">{{ error }}</p>
 
-    <!-- 到期预警 -->
-    <template v-else-if="tab === 'expiring'">
-      <div v-if="rows.length === 0" class="panel panel-pad empty">暂无即将到期合同</div>
-      <div v-else class="grid-3">
-        <article v-for="item in rows" :key="item.id" class="panel panel-pad contract-item">
-          <header>
-            <FileText class="icon" />
-            <StatusPill
-              :value="daysUntil(item.contractEnd) <= 0 ? 'expired' : 'expiring'"
-              :map="{ expiring: '即将到期', expired: '已到期' }"
-              :tone-map="{ expiring: 'warn', expired: 'danger' }"
-            />
-          </header>
-          <h3>员工ID: {{ item.userId }}</h3>
-          <p>{{ item.contractStart ?? '-' }} 至 {{ item.contractEnd ?? '-' }}</p>
-          <p>剩余 {{ daysUntil(item.contractEnd) }} 天</p>
-        </article>
-      </div>
-      <div v-if="total > pageSize" class="pager">
-        <button class="btn ghost" :disabled="pageNum <= 1" @click="loadExpiring(pageNum - 1)">上一页</button>
-        <span>{{ pageNum }} / {{ Math.ceil(total / pageSize) }}</span>
-        <button class="btn ghost" :disabled="pageNum * pageSize >= total" @click="loadExpiring(pageNum + 1)">下一页</button>
-      </div>
-    </template>
-
-    <!-- 全部合同 -->
-    <template v-else>
-      <div v-if="rows.length === 0" class="panel panel-pad empty">暂无合同记录</div>
-      <div v-else class="table-wrap panel panel-pad">
-        <table class="data-table">
-          <thead><tr><th>员工ID</th><th>身份证号</th><th>合同开始</th><th>合同结束</th><th>剩余天数</th><th>状态</th></tr></thead>
-          <tbody>
-            <tr v-for="item in rows" :key="item.id">
-              <td>{{ item.userId }}</td>
-              <td>{{ item.idCard ? item.idCard.slice(0, 6) + '****' : '-' }}</td>
-              <td>{{ item.contractStart ?? '-' }}</td>
-              <td>{{ item.contractEnd ?? '-' }}</td>
-              <td>{{ item.contractEnd ? daysUntil(item.contractEnd) + '天' : '-' }}</td>
-              <td>
-                <StatusPill
-                  :value="item.contractEnd ? (daysUntil(item.contractEnd) <= 0 ? 'expired' : daysUntil(item.contractEnd) <= 30 ? 'expiring' : 'normal') : 'normal'"
-                  :map="{ normal: '正常', expiring: '即将到期', expired: '已到期' }"
-                  :tone-map="{ normal: 'success', expiring: 'warn', expired: 'danger' }"
-                />
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <div v-if="total > pageSize" class="pager">
-        <button class="btn ghost" :disabled="pageNum <= 1" @click="loadAll(pageNum - 1)">上一页</button>
-        <span>{{ pageNum }} / {{ Math.ceil(total / pageSize) }}</span>
-        <button class="btn ghost" :disabled="pageNum * pageSize >= total" @click="loadAll(pageNum + 1)">下一页</button>
-      </div>
-    </template>
+    <div v-if="rows.length > 0" class="grid-3">
+      <article v-for="item in rows" :key="item.id" class="panel panel-pad contract-item">
+        <header>
+          <FileText class="icon" />
+          <StatusPill :value="contractTone(item)" :map="{ normal: '正常', expiring: '即将到期', expired: '已到期' }" :tone-map="{ normal: 'success', expiring: 'warn', expired: 'danger' }" />
+        </header>
+        <h3>{{ item.realName || item.userName || `员工 ${item.userId}` }}</h3>
+        <p>{{ item.contractNo || '未填写合同编号' }}</p>
+        <p>{{ item.startDate || '-' }} 至 {{ item.endDate || '-' }}</p>
+      </article>
+    </div>
+    <section v-else class="panel empty">暂无合同数据</section>
   </section>
 </template>
 
 <script setup lang="ts">
+import { FileText, RefreshCw } from 'lucide-vue-next'
 import { onMounted, ref } from 'vue'
-import { FileText } from 'lucide-vue-next'
-import { assetApi } from '@/api/services'
-import type { EmployeeArchive } from '@/api/types'
 import StatusPill from '@/components/StatusPill.vue'
+import { assetApi } from '@/api/services'
+import type { Contract } from '@/api/types'
 
-const tab = ref<'expiring' | 'all'>('expiring')
-const rows = ref<EmployeeArchive[]>([])
-const pageNum = ref(1)
-const pageSize = 10
-const total = ref(0)
+const rows = ref<Contract[]>([])
 const loading = ref(false)
-const filterDays = ref(30)
+const error = ref('')
+const pageRows = <T,>(page: { records?: T[]; list?: T[] }) => page.records || page.list || []
 
-onMounted(() => loadExpiring(1))
+function contractTone(item: Contract) {
+  if (item.status === 'expired' || item.status === 0) return 'expired'
+  if (item.status === 'expiring') return 'expiring'
+  if (!item.endDate) return 'normal'
+  const today = new Date()
+  const end = new Date(item.endDate)
+  const days = Math.ceil((end.getTime() - today.getTime()) / 86400000)
+  if (days < 0) return 'expired'
+  if (days <= 30) return 'expiring'
+  return 'normal'
+}
 
-function loadExpiring(page: number) {
+async function load() {
   loading.value = true
-  pageNum.value = page
-  assetApi.expiringContracts(filterDays.value)
-    .then(res => { rows.value = res.records ?? []; total.value = res.total })
-    .finally(() => loading.value = false)
+  error.value = ''
+  try {
+    const result = await assetApi.contracts({ pageNum: 1, pageSize: 50 })
+    rows.value = Array.isArray(result) ? result : pageRows(result)
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : '合同数据加载失败'
+  } finally {
+    loading.value = false
+  }
 }
 
-function loadAll(page: number) {
-  loading.value = true
-  pageNum.value = page
-  assetApi.contracts({ pageNum: page, pageSize })
-    .then(res => { rows.value = res.records ?? []; total.value = res.total })
-    .finally(() => loading.value = false)
-}
-
-function daysUntil(endDate?: string): number {
-  if (!endDate) return 999
-  return Math.ceil((new Date(endDate).getTime() - Date.now()) / 86400000)
-}
+onMounted(load)
 </script>
 
 <style scoped>
-.empty { text-align: center; padding: 40px; color: var(--muted); }
-.pager { display: flex; align-items: center; gap: 12px; margin-top: 12px; justify-content: center; }
-.active { background: var(--primary-soft); color: var(--primary); }
-.contract-item { display: grid; gap: 10px; }
-.contract-item header { display: flex; justify-content: space-between; align-items: center; }
-.contract-item h3, .contract-item p { margin: 0; }
-.contract-item p { color: var(--muted); font-size: 13px; }
-.grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.contract-item {
+  display: grid;
+  gap: 12px;
+}
+
+.contract-item header {
+  display: flex;
+  justify-content: space-between;
+}
+
+.contract-item h3,
+.contract-item p {
+  margin: 0;
+}
+
+.contract-item p {
+  color: var(--muted);
+}
 </style>

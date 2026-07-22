@@ -9,7 +9,7 @@ export interface ApiResult<T> {
 
 export const http = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '',
-  timeout: 8000
+  timeout: 10000
 })
 
 http.interceptors.request.use((config) => {
@@ -36,11 +36,3 @@ http.interceptors.response.use(
     throw new Error(message)
   }
 )
-
-export async function withFallback<T>(request: Promise<T>, fallback: T): Promise<{ data: T; mocked: boolean }> {
-  try {
-    return { data: await request, mocked: false }
-  } catch {
-    return { data: fallback, mocked: true }
-  }
-}

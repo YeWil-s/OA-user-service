@@ -1,7 +1,7 @@
 export interface PageResult<T> {
   records?: T[]
   list?: T[]
-  total: number
+  total?: number
   size?: number
   current?: number
   pageNum?: number
@@ -13,7 +13,7 @@ export interface LoginUser {
   userId: number
   username: string
   realName: string
-  avatarUrl?: string
+  avatarUrl?: string | null
   roles: string[]
   permissions: string[]
 }
@@ -21,12 +21,15 @@ export interface LoginUser {
 export interface Employee {
   id: number
   username: string
+  password?: string
   realName: string
   phone?: string
   email?: string
   gender?: number
   deptId?: number
+  deptName?: string
   positionId?: number
+  positionName?: string
   entryDate?: string
   status?: number
 }
@@ -47,6 +50,7 @@ export interface Position {
   positionName: string
   positionCode: string
   deptId?: number
+  deptName?: string
   sortOrder?: number
   status?: number
 }
@@ -79,16 +83,18 @@ export interface MenuNode {
 export interface Notice {
   id: number
   title: string
-  content?: string
+  content?: string | null
+  summary?: string | null
   publisherId?: number
   noticeType?: number
   targetType?: number
-  targetIds?: string
-  startTime?: string
-  endTime?: string
+  targetIds?: number[]
+  startTime?: string | null
+  endTime?: string | null
   status?: number
-  createTime?: string
   read?: boolean
+  createTime?: string
+  updateTime?: string
 }
 
 export interface Message {
@@ -98,6 +104,7 @@ export interface Message {
   content?: string
   msgType: number
   relatedId?: number
+  read?: boolean
   isRead?: number
   createTime?: string
 }
@@ -146,61 +153,9 @@ export interface ApprovalStats {
   passRate: number
   rejectRate: number
   pendingRate: number
+  statusDistribution?: Array<{ name: string; value: number; unit?: string }>
 }
 
-// ---- asset-service ----
-export interface Asset {
-  id: number
-  assetName: string
-  assetCode: string
-  category: number
-  model?: string
-  purchaseDate?: string
-  purchasePrice?: number
-  status: number
-  createTime?: string
-}
-
-export interface AssetRecord {
-  id: number
-  assetId: number
-  userId: number
-  borrowDate?: string
-  expectReturnDate?: string
-  actualReturnDate?: string
-  status: number
-  createTime?: string
-}
-
-export interface StaffChange {
-  id: number
-  userId: number
-  changeType: number
-  beforeDept?: number
-  afterDept?: number
-  beforePosition?: number
-  afterPosition?: number
-  changeDate?: string
-  remark?: string
-  createTime?: string
-}
-
-export interface EmployeeArchive {
-  id: number
-  userId: number
-  idCard?: string
-  education?: number
-  major?: string
-  graduateSchool?: string
-  address?: string
-  emergencyContact?: string
-  emergencyPhone?: string
-  contractStart?: string
-  contractEnd?: string
-  createTime?: string
-}
-
-// ---- attendance-service ----
 export interface Shift {
   id: number
   shiftName: string
@@ -208,65 +163,152 @@ export interface Shift {
   endTime: string
   flexStart?: string
   flexEnd?: string
-  status: number
-}
-
-export interface PunchVO {
-  message: string
-  userId: number
-  recordDate: string
-  punchTime: string
-  statusLabel: string
-  lateMinutes?: number
-  earlyMinutes?: number
+  status?: number
+  createTime?: string
+  updateTime?: string
 }
 
 export interface AttendanceRecord {
   id: number
   userId: number
   realName?: string
+  deptId?: number
   deptName?: string
+  shiftId?: number
+  shiftName?: string
   recordDate: string
-  punchInTime?: string
-  punchOutTime?: string
+  punchInTime?: string | null
+  punchOutTime?: string | null
   lateMinutes?: number
   earlyMinutes?: number
   workHours?: number
-  statusLabel: string
+  punchType?: number
+  deviceInfo?: string
+  location?: string
+  statusLabel?: string
 }
 
-// ---- approval-service ----
-export interface ApplicationVO {
+export interface PunchResult {
+  message: string
+  userId: number
+  recordDate: string
+  punchTime: string
+  shiftId?: number
+  shiftName?: string
+  statusLabel?: string
+  lateMinutes?: number
+  earlyMinutes?: number
+}
+
+export interface ApprovalApplication {
   id: number
   applicationNo: string
   userId: number
-  applicantName?: string
+  applicantName: string
+  deptId?: number
   deptName?: string
   appType: number
-  appTypeText: string
+  appTypeText?: string
   leaveType?: number
   leaveTypeText?: string
   startTime: string
   endTime: string
-  duration: number
-  reason: string
+  duration?: number
+  reason?: string
   status: number
-  statusText: string
+  statusText?: string
+  currentApproverId?: number
   currentApproverName?: string
-  createTime: string
-}
-
-export interface ApplicationDetail extends ApplicationVO {
+  latestAction?: number | null
+  latestActionText?: string | null
+  latestActionTime?: string | null
+  createTime?: string
   attachments?: string[]
-  timeline: ApprovalTimeline[]
+  timeline?: Array<{
+    id: number
+    approverId: number
+    approverName: string
+    action: number
+    actionText: string
+    comment?: string
+    actionTime: string
+  }>
 }
 
-export interface ApprovalTimeline {
+export interface Asset {
   id: number
-  approverId: number
-  approverName: string
-  action: number
-  actionText: string
-  comment: string
-  actionTime: string
+  assetCode?: string
+  code?: string
+  assetName?: string
+  name?: string
+  category?: number | string
+  categoryName?: string
+  brand?: string
+  model?: string
+  userId?: number
+  ownerId?: number
+  ownerName?: string
+  userName?: string
+  status?: number
+  purchaseDate?: string
+  purchasePrice?: number
+  remark?: string
+  createTime?: string
+  updateTime?: string
+}
+
+export interface AssetRecord {
+  id: number
+  assetId: number
+  assetCode?: string
+  assetName?: string
+  userId: number
+  userName?: string
+  borrowTime?: string
+  returnTime?: string
+  status?: number
+}
+
+export interface StaffChange {
+  id: number
+  userId: number
+  realName?: string
+  userName?: string
+  changeType: number
+  changeDate?: string
+  fromDeptId?: number
+  fromDeptName?: string
+  toDeptId?: number
+  toDeptName?: string
+  fromPositionId?: number
+  fromPositionName?: string
+  toPositionId?: number
+  toPositionName?: string
+  remark?: string
+  createTime?: string
+  updateTime?: string
+}
+
+export interface StaffArchive {
+  userId: number
+  education?: number
+  nativePlace?: string
+  address?: string
+  emergencyContact?: string
+  emergencyPhone?: string
+  remark?: string
+}
+
+export interface Contract {
+  id: number
+  userId: number
+  realName?: string
+  userName?: string
+  contractNo?: string
+  contractType?: number | string
+  startDate?: string
+  endDate?: string
+  status?: number | string
+  createTime?: string
+  updateTime?: string
 }

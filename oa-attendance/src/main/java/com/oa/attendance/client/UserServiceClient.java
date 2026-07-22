@@ -1,15 +1,14 @@
 package com.oa.attendance.client;
 
+import com.oa.attendance.config.FeignClientConfig;
 import com.oa.common.exception.BusinessException;
+import com.oa.common.result.Result;
 import com.oa.common.result.ResultCode;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.ResponseEntity;
-import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestClientException;
-import org.springframework.web.client.RestTemplate;
-import org.springframework.web.util.UriComponentsBuilder;
+import feign.FeignException;
+import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -21,40 +20,41 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-@Component
-public class UserServiceClient {
+@FeignClient(
+        name = "oa-user-service",
+        contextId = "attendanceUserServiceClient",
+        path = "/api/user",
+        configuration = FeignClientConfig.class
+)
+public interface UserServiceClient {
 
-    private final RestTemplate restTemplate;
-    private final String baseUrl;
+    @GetMapping("/employees/{userId}")
+    Result<UserInfo> getUserResponse(@PathVariable("userId") Long userId);
 
-    public UserServiceClient(RestTemplate restTemplate,
-                             @Value("${oa.user-service.base-url:http://localhost:8081}") String baseUrl) {
-        this.restTemplate = restTemplate;
-        this.baseUrl = trimSlash(baseUrl);
-    }
+    @GetMapping("/employees")
+    Result<RemotePage<UserInfo>> listUsersResponse(
+            @RequestParam("pageNum") Integer pageNum,
+            @RequestParam("pageSize") Integer pageSize,
+            @RequestParam("deptId") Long deptId,
+            @RequestParam("status") Integer status
+    );
 
-    public UserInfo getUser(Long userId) {
+    @GetMapping("/depts")
+    Result<List<DeptInfo>> getDeptTreeResponse();
+
+    default UserInfo getUser(Long userId) {
         if (userId == null) {
             return null;
         }
         try {
-            ResponseEntity<RemoteResult<UserInfo>> response = restTemplate.exchange(
-                    baseUrl + "/api/user/employees/" + userId,
-                    HttpMethod.GET,
-                    null,
-                    new ParameterizedTypeReference<RemoteResult<UserInfo>>() {
-                    });
-            RemoteResult<UserInfo> body = response.getBody();
-            if (body == null || body.getCode() != 200) {
-                return null;
-            }
-            return body.getData();
-        } catch (RestClientException ex) {
-            throw new BusinessException(ResultCode.INTERNAL_ERROR, "调用用户服务失败: " + ex.getMessage());
+            Result<UserInfo> result = getUserResponse(userId);
+            return isSuccess(result) ? result.getData() : null;
+        } catch (FeignException ex) {
+            throw userServiceUnavailable(ex);
         }
     }
 
-    public UserInfo requireActiveUser(Long userId) {
+    default UserInfo requireActiveUser(Long userId) {
         UserInfo user = getUser(userId);
         if (user == null) {
             throw new BusinessException(ResultCode.USER_NOT_FOUND);
@@ -65,45 +65,34 @@ public class UserServiceClient {
         return user;
     }
 
-    public List<UserInfo> listUsersByDept(Long deptId) {
+    default List<UserInfo> listUsersByDept(Long deptId) {
         if (deptId == null) {
             return Collections.emptyList();
         }
         try {
-            String url = UriComponentsBuilder.fromHttpUrl(baseUrl + "/api/user/employees")
-                    .queryParam("pageNum", 1)
-                    .queryParam("pageSize", 1000)
-                    .queryParam("deptId", deptId)
-                    .queryParam("status", 1)
-                    .toUriString();
-            ResponseEntity<RemoteResult<RemotePage<UserInfo>>> response = restTemplate.exchange(
-                    url,
-                    HttpMethod.GET,
-                    null,
-                    new ParameterizedTypeReference<RemoteResult<RemotePage<UserInfo>>>() {
-                    });
-            RemoteResult<RemotePage<UserInfo>> body = response.getBody();
-            if (body == null || body.getCode() != 200 || body.getData() == null) {
+            Result<RemotePage<UserInfo>> result = listUsersResponse(1, 1000, deptId, 1);
+            if (!isSuccess(result) || result.getData() == null || result.getData().getRecords() == null) {
                 return Collections.emptyList();
             }
-            return body.getData().getRecords() == null ? Collections.emptyList() : body.getData().getRecords();
-        } catch (RestClientException ex) {
-            throw new BusinessException(ResultCode.INTERNAL_ERROR, "调用用户服务失败: " + ex.getMessage());
+            return result.getData().getRecords();
+        } catch (FeignException ex) {
+            throw userServiceUnavailable(ex);
         }
     }
 
-    public Map<Long, UserInfo> mapUsers(List<Long> userIds) {
+    default Map<Long, UserInfo> mapUsers(List<Long> userIds) {
         if (userIds == null || userIds.isEmpty()) {
             return Collections.emptyMap();
         }
         return userIds.stream()
+                .filter(Objects::nonNull)
                 .distinct()
                 .map(this::getUser)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toMap(UserInfo::getId, Function.identity(), (a, b) -> a));
     }
 
-    public List<Long> collectDeptAndChildren(Long deptId) {
+    default List<Long> collectDeptAndChildren(Long deptId) {
         if (deptId == null) {
             return Collections.emptyList();
         }
@@ -116,34 +105,20 @@ public class UserServiceClient {
         return new ArrayList<>(result);
     }
 
-    public Map<Long, DeptInfo> mapDepts() {
+    default Map<Long, DeptInfo> mapDepts() {
         return flattenDeptTree(getDeptTree()).stream()
                 .collect(Collectors.toMap(DeptInfo::getId, Function.identity(), (a, b) -> a));
     }
 
-    public String getUserName(Long userId) {
-        UserInfo user = getUser(userId);
-        if (user == null) {
-            return "未知用户";
-        }
-        return user.getRealName() == null ? user.getUsername() : user.getRealName();
-    }
-
     private List<DeptInfo> getDeptTree() {
         try {
-            ResponseEntity<RemoteResult<List<DeptInfo>>> response = restTemplate.exchange(
-                    baseUrl + "/api/user/depts",
-                    HttpMethod.GET,
-                    null,
-                    new ParameterizedTypeReference<RemoteResult<List<DeptInfo>>>() {
-                    });
-            RemoteResult<List<DeptInfo>> body = response.getBody();
-            if (body == null || body.getCode() != 200 || body.getData() == null) {
+            Result<List<DeptInfo>> result = getDeptTreeResponse();
+            if (!isSuccess(result) || result.getData() == null) {
                 return Collections.emptyList();
             }
-            return body.getData();
-        } catch (RestClientException ex) {
-            throw new BusinessException(ResultCode.INTERNAL_ERROR, "调用用户服务失败: " + ex.getMessage());
+            return result.getData();
+        } catch (FeignException ex) {
+            throw userServiceUnavailable(ex);
         }
     }
 
@@ -168,34 +143,25 @@ public class UserServiceClient {
         }
     }
 
-    private String trimSlash(String value) {
-        if (value != null && value.endsWith("/")) {
-            return value.substring(0, value.length() - 1);
+    private boolean isSuccess(Result<?> result) {
+        return result != null && result.getCode() == ResultCode.SUCCESS.getCode();
+    }
+
+    private BusinessException userServiceUnavailable(FeignException ex) {
+        if (ex.status() == 401) {
+            return new BusinessException(ResultCode.UNAUTHORIZED, "User service authentication failed");
         }
-        return value;
+        return new BusinessException(ResultCode.INTERNAL_ERROR, "调用用户服务失败: " + ex.getMessage());
     }
 
-    public static class RemoteResult<T> {
-        private int code;
-        private String message;
-        private T data;
-
-        public int getCode() { return code; }
-        public void setCode(int code) { this.code = code; }
-        public String getMessage() { return message; }
-        public void setMessage(String message) { this.message = message; }
-        public T getData() { return data; }
-        public void setData(T data) { this.data = data; }
-    }
-
-    public static class RemotePage<T> {
+    class RemotePage<T> {
         private List<T> records;
 
         public List<T> getRecords() { return records; }
         public void setRecords(List<T> records) { this.records = records; }
     }
 
-    public static class UserInfo {
+    class UserInfo {
         private Long id;
         private String username;
         private String realName;
@@ -215,7 +181,7 @@ public class UserServiceClient {
         public boolean isActive() { return !Integer.valueOf(0).equals(status); }
     }
 
-    public static class DeptInfo {
+    class DeptInfo {
         private Long id;
         private Long parentId;
         private String deptName;

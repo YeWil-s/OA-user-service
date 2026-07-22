@@ -1,6 +1,7 @@
 package com.oa.approval.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.oa.approval.client.UserServiceClient;
@@ -64,6 +65,9 @@ public class ApprovalServiceImpl implements IApprovalService {
         CurrentUser currentUser = UserContextHolder.getCurrentUser();
         UserServiceClient.UserInfo applicant = userServiceClient.requireActiveUser(currentUser.getUserId());
         Long applicantDeptId = applicant.getDeptId() == null ? currentUser.getDeptId() : applicant.getDeptId();
+        if (applicantDeptId == null) {
+            throw new BusinessException(ResultCode.BAD_REQUEST, "申请人未分配部门");
+        }
         validateSubmitDTO(dto);
 
         AppApplication application = new AppApplication();
@@ -102,7 +106,8 @@ public class ApprovalServiceImpl implements IApprovalService {
         CurrentUser currentUser = UserContextHolder.getCurrentUser();
         AppApplication application = getApplication(id);
         ensureCanView(currentUser, application);
-        ApplicationDetailVO detail = toDetailVO(application, null);
+        AppApprovalRecord latestRecord = latestRecordMap(List.of(application.getId())).get(application.getId());
+        ApplicationDetailVO detail = toDetailVO(application, latestRecord);
         List<AppApprovalRecord> timeline = appApprovalRecordMapper.selectList(new LambdaQueryWrapper<AppApprovalRecord>()
                 .eq(AppApprovalRecord::getApplicationId, application.getId())
                 .orderByAsc(AppApprovalRecord::getActionTime));
@@ -123,9 +128,14 @@ public class ApprovalServiceImpl implements IApprovalService {
         if (!Objects.equals(application.getStatus(), 1)) {
             throw new BusinessException(ResultCode.CANNOT_CANCEL);
         }
-        application.setStatus(4);
-        application.setCurrentApproverId(null);
-        appApplicationMapper.updateById(application);
+        int updated = appApplicationMapper.update(null, new LambdaUpdateWrapper<AppApplication>()
+                .eq(AppApplication::getId, id)
+                .eq(AppApplication::getStatus, 1)
+                .set(AppApplication::getStatus, 4)
+                .set(AppApplication::getCurrentApproverId, null));
+        if (updated != 1) {
+            throw new BusinessException(ResultCode.CANNOT_CANCEL);
+        }
     }
 
     @Override
@@ -152,9 +162,16 @@ public class ApprovalServiceImpl implements IApprovalService {
             throw new BusinessException(ResultCode.ALREADY_APPROVED);
         }
 
-        application.setStatus(Boolean.TRUE.equals(dto.getApproved()) ? 2 : 3);
-        application.setCurrentApproverId(null);
-        appApplicationMapper.updateById(application);
+        int targetStatus = Boolean.TRUE.equals(dto.getApproved()) ? 2 : 3;
+        int updated = appApplicationMapper.update(null, new LambdaUpdateWrapper<AppApplication>()
+                .eq(AppApplication::getId, id)
+                .eq(AppApplication::getStatus, 1)
+                .eq(AppApplication::getCurrentApproverId, currentUser.getUserId())
+                .set(AppApplication::getStatus, targetStatus)
+                .set(AppApplication::getCurrentApproverId, null));
+        if (updated != 1) {
+            throw new BusinessException(ResultCode.ALREADY_APPROVED);
+        }
 
         AppApprovalRecord record = new AppApprovalRecord();
         record.setApplicationId(application.getId());
@@ -328,7 +345,14 @@ public class ApprovalServiceImpl implements IApprovalService {
     }
 
     private ApplicationQueryDTO safeQuery(ApplicationQueryDTO dto) {
-        return dto == null ? new ApplicationQueryDTO() : dto;
+        ApplicationQueryDTO safeDto = dto == null ? new ApplicationQueryDTO() : dto;
+        if (safeDto.getPageNum() == null) {
+            safeDto.setPageNum(1);
+        }
+        if (safeDto.getPageSize() == null) {
+            safeDto.setPageSize(20);
+        }
+        return safeDto;
     }
 
     private AppApplication getApplication(Long id) {

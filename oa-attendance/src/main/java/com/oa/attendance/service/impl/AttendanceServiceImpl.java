@@ -1,6 +1,7 @@
 package com.oa.attendance.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.oa.attendance.client.UserServiceClient;
@@ -117,18 +118,22 @@ public class AttendanceServiceImpl implements IAttendanceService {
         if (Integer.valueOf(0).equals(shift.getStatus())) {
             throw new BusinessException(ResultCode.NOT_FOUND, "可用班次不存在");
         }
-        UserShift mapping = userShiftMapper.selectOne(new LambdaQueryWrapper<UserShift>()
+        int updated = userShiftMapper.update(null, new LambdaUpdateWrapper<UserShift>()
                 .eq(UserShift::getUserId, dto.getUserId())
-                .last("limit 1"));
-        if (mapping == null) {
-            mapping = new UserShift();
-            mapping.setUserId(dto.getUserId());
-            mapping.setShiftId(dto.getShiftId());
-            userShiftMapper.insert(mapping);
+                .set(UserShift::getShiftId, dto.getShiftId()));
+        if (updated > 0) {
             return;
         }
+        UserShift mapping = new UserShift();
+        mapping.setUserId(dto.getUserId());
         mapping.setShiftId(dto.getShiftId());
-        userShiftMapper.updateById(mapping);
+        try {
+            userShiftMapper.insert(mapping);
+        } catch (DuplicateKeyException ex) {
+            userShiftMapper.update(null, new LambdaUpdateWrapper<UserShift>()
+                    .eq(UserShift::getUserId, dto.getUserId())
+                    .set(UserShift::getShiftId, dto.getShiftId()));
+        }
     }
 
     @Override
@@ -145,6 +150,7 @@ public class AttendanceServiceImpl implements IAttendanceService {
         if (record != null && record.getPunchOutTime() != null) {
             throw new BusinessException(ResultCode.CONFLICT, "今天已经完成下班打卡，不能再补上班打卡");
         }
+        AttShift shift = resolveShiftForUser(currentUser.getUserId());
         LocalDateTime now = LocalDateTime.now();
         if (record == null) {
             record = new AttRecord();
@@ -160,13 +166,22 @@ public class AttendanceServiceImpl implements IAttendanceService {
                 throw new BusinessException(ResultCode.ALREADY_PUNCHED_IN, "今天已经完成上班打卡");
             }
         } else {
+            int updated = attRecordMapper.update(null, new LambdaUpdateWrapper<AttRecord>()
+                    .eq(AttRecord::getId, record.getId())
+                    .isNull(AttRecord::getPunchInTime)
+                    .set(AttRecord::getPunchInTime, now)
+                    .set(AttRecord::getPunchType, resolvePunchType(safeDto))
+                    .set(AttRecord::getDeviceInfo, safeDto.getDeviceInfo())
+                    .set(AttRecord::getLocation, safeDto.getLocation()));
+            if (updated != 1) {
+                throw new BusinessException(ResultCode.ALREADY_PUNCHED_IN, "今天已经完成上班打卡");
+            }
             record.setPunchInTime(now);
             record.setPunchType(resolvePunchType(safeDto));
             record.setDeviceInfo(safeDto.getDeviceInfo());
             record.setLocation(safeDto.getLocation());
-            attRecordMapper.updateById(record);
         }
-        return buildPunchVO("上班打卡成功", record, resolveShiftForUser(currentUser.getUserId()), now, false);
+        return buildPunchVO("上班打卡成功", record, shift, now, false);
     }
 
     @Override
@@ -183,13 +198,23 @@ public class AttendanceServiceImpl implements IAttendanceService {
         if (record.getPunchOutTime() != null) {
             throw new BusinessException(ResultCode.CONFLICT, "今天已经完成下班打卡");
         }
+        AttShift shift = resolveShiftForUser(currentUser.getUserId());
         LocalDateTime now = LocalDateTime.now();
+        int updated = attRecordMapper.update(null, new LambdaUpdateWrapper<AttRecord>()
+                .eq(AttRecord::getId, record.getId())
+                .isNull(AttRecord::getPunchOutTime)
+                .set(AttRecord::getPunchOutTime, now)
+                .set(AttRecord::getPunchType, resolvePunchType(safeDto))
+                .set(AttRecord::getDeviceInfo, safeDto.getDeviceInfo())
+                .set(AttRecord::getLocation, safeDto.getLocation()));
+        if (updated != 1) {
+            throw new BusinessException(ResultCode.CONFLICT, "今天已经完成下班打卡");
+        }
         record.setPunchOutTime(now);
         record.setPunchType(resolvePunchType(safeDto));
         record.setDeviceInfo(safeDto.getDeviceInfo());
         record.setLocation(safeDto.getLocation());
-        attRecordMapper.updateById(record);
-        return buildPunchVO("下班打卡成功", record, resolveShiftForUser(currentUser.getUserId()), now, true);
+        return buildPunchVO("下班打卡成功", record, shift, now, true);
     }
 
     @Override
@@ -222,6 +247,12 @@ public class AttendanceServiceImpl implements IAttendanceService {
 
     private IPage<AttendanceRecordVO> queryRecords(List<Long> userIds, AttendanceRecordQueryDTO dto) {
         AttendanceRecordQueryDTO safeDto = dto == null ? new AttendanceRecordQueryDTO() : dto;
+        if (safeDto.getPageNum() == null) {
+            safeDto.setPageNum(1);
+        }
+        if (safeDto.getPageSize() == null) {
+            safeDto.setPageSize(20);
+        }
         DateRange range = resolveDateRange(safeDto);
         if (userIds != null && userIds.isEmpty()) {
             return new Page<>(safeDto.getPageNum(), safeDto.getPageSize(), 0);
@@ -400,6 +431,9 @@ public class AttendanceServiceImpl implements IAttendanceService {
     private void validateShiftTime(ShiftDTO dto) {
         if (!dto.getStartTime().isBefore(dto.getEndTime())) {
             throw new BusinessException(ResultCode.BAD_REQUEST, "上班时间必须早于下班时间");
+        }
+        if ((dto.getFlexStart() == null) != (dto.getFlexEnd() == null)) {
+            throw new BusinessException(ResultCode.BAD_REQUEST, "弹性班次必须同时填写弹性开始和结束时间");
         }
         if (dto.getFlexStart() != null && dto.getFlexEnd() != null && dto.getFlexStart().isAfter(dto.getFlexEnd())) {
             throw new BusinessException(ResultCode.BAD_REQUEST, "弹性开始时间不能晚于弹性结束时间");
