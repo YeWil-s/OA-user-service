@@ -56,7 +56,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         List<String> roles = sysUserMapper.selectRoleCodesByUserId(user.getId());
         List<String> permissions = sysUserMapper.selectPermissionCodesByUserId(user.getId());
 
-        String token = jwtUtils.generateToken(user.getId(), user.getUsername(), roles, permissions);
+        String token = jwtUtils.generateToken(user.getId(), user.getDeptId(), user.getUsername(), roles, permissions);
 
         user.setLastLoginTime(LocalDateTime.now());
         this.updateById(user);
