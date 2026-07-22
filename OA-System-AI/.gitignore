@@ -1,0 +1,31 @@
+# Build output
+target/
+*/target/
+.m2/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Logs
+logs/
+*.log
+
+# Runtime files
+*.pid
+*.hprof
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets and local overrides
+.env
+.env.*
+application-local.yml
+application-local.yaml
+
+# Frontend placeholder for later phases
+node_modules/
+dist/

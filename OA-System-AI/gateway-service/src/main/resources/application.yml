@@ -1,0 +1,82 @@
+server:
+  port: 9000
+
+spring:
+  application:
+    name: gateway-service
+  profiles:
+    active: dev
+  config:
+    import:
+      - optional:nacos:${spring.application.name}.yaml
+  cloud:
+    nacos:
+      server-addr: 192.168.150.102:8848
+      username: ${NACOS_USERNAME:nacos}
+      password: ${NACOS_PASSWORD:nacos}
+      discovery:
+        group: OA_GROUP
+      config:
+        group: OA_GROUP
+        file-extension: yaml
+    gateway:
+      server:
+        webflux:
+          discovery:
+            locator:
+              enabled: true
+              lower-case-service-id: true
+          routes:
+            - id: user-service
+              uri: lb://user-service
+              predicates:
+                - Path=/api/user/**
+            - id: attendance-service
+              uri: lb://attendance-service
+              predicates:
+                - Path=/api/attendance/**
+            - id: approval-service
+              uri: lb://approval-service
+              predicates:
+                - Path=/api/approval/**
+            - id: notice-service
+              uri: lb://notice-service
+              predicates:
+                - Path=/api/notice/**
+            - id: asset-service
+              uri: lb://asset-service
+              predicates:
+                - Path=/api/asset/**
+            - id: ai-service
+              uri: lb://ai-service
+              predicates:
+                - Path=/api/ai/**
+            - id: visual-service
+              uri: lb://visual-service
+              predicates:
+                - Path=/api/visual/**
+oa:
+  security:
+    jwt:
+      secret: ${JWT_SECRET:oa-system-ai-default-jwt-secret-key-change-me-32bytes}
+      expiration-minutes: ${JWT_EXPIRATION_MINUTES:120}
+      issuer: oa-system-ai
+  gateway:
+    security:
+      whitelist:
+        - /api/user/login
+        - /api/user/health
+        - /actuator/**
+        - /doc.html
+        - /webjars/**
+        - /swagger-ui/**
+        - /v3/api-docs/**
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,gateway
+
+logging:
+  level:
+    com.oa.gateway: debug
