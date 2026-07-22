@@ -3,82 +3,99 @@
     <div class="page-head">
       <div>
         <h2 class="page-title">待审批</h2>
-        <p class="page-subtitle">当前用户需要处理的申请</p>
+        <p class="page-subtitle">处理待审批的申请</p>
       </div>
-      <span class="mock-banner">审批后端未完成，当前为界面流程</span>
     </div>
 
-    <section class="pending-grid">
-      <article v-for="item in rows" :key="item.id" class="panel panel-pad pending-item">
-        <header>
-          <div>
-            <h3>{{ item.no }}</h3>
-            <p>{{ item.type }} · {{ item.duration }}</p>
-          </div>
-          <span class="pill warn">{{ item.status }}</span>
-        </header>
-        <div class="approval-line">
-          <span>发起人</span><strong>李明</strong>
-          <span>提交时间</span><strong>{{ item.time }}</strong>
-        </div>
-        <textarea class="textarea" placeholder="审批意见" />
-        <div class="toolbar">
-          <button class="btn danger"><XCircle class="icon" />驳回</button>
-          <button class="btn primary"><CheckCircle2 class="icon" />同意</button>
-        </div>
-      </article>
+    <section class="panel panel-pad">
+      <div v-if="loading" class="empty">加载中...</div>
+      <div v-else-if="rows.length === 0" class="empty">暂无待审批申请</div>
+      <div v-else class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th>申请单号</th><th>申请人</th><th>类型</th><th>时间</th><th>原因</th><th>操作</th></tr></thead>
+          <tbody>
+            <tr v-for="row in rows" :key="row.id">
+              <td>{{ row.applicationNo }}</td>
+              <td>{{ row.applicantName ?? '-' }}</td>
+              <td>{{ row.appTypeText }}{{ row.leaveTypeText ? ' (' + row.leaveTypeText + ')' : '' }}</td>
+              <td>{{ row.startTime?.slice(0,16) }} ~ {{ row.endTime?.slice(0,16) }}</td>
+              <td>{{ row.reason?.slice(0, 30) }}{{ row.reason?.length > 30 ? '...' : '' }}</td>
+              <td>
+                <div class="row-actions">
+                  <button class="btn primary btn-sm" @click="openApprove(row, true)">同意</button>
+                  <button class="btn danger btn-sm" @click="openApprove(row, false)">驳回</button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div v-if="total > pageSize" class="pager">
+        <button class="btn ghost" :disabled="pageNum <= 1" @click="load(pageNum - 1)">上一页</button>
+        <span>{{ pageNum }} / {{ Math.ceil(total / pageSize) }}</span>
+        <button class="btn ghost" :disabled="pageNum * pageSize >= total" @click="load(pageNum + 1)">下一页</button>
+      </div>
     </section>
+
+    <ModalDialog v-model="dialogOpen" :title="approveAction ? '同意申请' : '驳回申请'">
+      <label class="form-item"><span>审批意见</span><textarea v-model="comment" class="textarea" rows="3" placeholder="请输入审批意见" /></label>
+      <template #footer>
+        <button class="btn" @click="dialogOpen = false">取消</button>
+        <button class="btn primary" :disabled="saving" @click="doApprove">{{ saving ? '提交中' : '确认' }}</button>
+      </template>
+    </ModalDialog>
   </section>
 </template>
 
 <script setup lang="ts">
-import { CheckCircle2, XCircle } from 'lucide-vue-next'
-import { workflowRows } from '@/api/mock'
+import { onMounted, ref } from 'vue'
+import { approvalApi } from '@/api/services'
+import type { ApplicationVO } from '@/api/types'
+import ModalDialog from '@/components/ModalDialog.vue'
 
-const rows = workflowRows.applications.filter((item) => item.status === '审批中')
+const rows = ref<ApplicationVO[]>([])
+const pageNum = ref(1)
+const pageSize = 10
+const total = ref(0)
+const loading = ref(false)
+const saving = ref(false)
+const dialogOpen = ref(false)
+const approveAction = ref(false)
+const approveTarget = ref<ApplicationVO | null>(null)
+const comment = ref('')
+
+onMounted(() => load(1))
+
+function load(page: number) {
+  loading.value = true
+  pageNum.value = page
+  approvalApi.pending({ pageNum: page, pageSize })
+    .then(res => { rows.value = res.records ?? []; total.value = res.total })
+    .finally(() => loading.value = false)
+}
+
+function openApprove(row: ApplicationVO, approved: boolean) {
+  approveTarget.value = row
+  approveAction.value = approved
+  comment.value = ''
+  dialogOpen.value = true
+}
+
+async function doApprove() {
+  if (!approveTarget.value || !comment.value.trim()) return
+  saving.value = true
+  try {
+    await approvalApi.approve(approveTarget.value.id, { approved: approveAction.value, comment: comment.value.trim() })
+    dialogOpen.value = false
+    load(pageNum.value)
+  } catch { /* ignore */ }
+  saving.value = false
+}
 </script>
 
 <style scoped>
-.pending-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-}
-
-.pending-item {
-  display: grid;
-  gap: 14px;
-}
-
-.pending-item header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.pending-item h3 {
-  margin: 0;
-}
-
-.pending-item p {
-  margin: 5px 0 0;
-  color: var(--muted);
-}
-
-.approval-line {
-  display: grid;
-  grid-template-columns: 80px minmax(0, 1fr);
-  gap: 8px;
-}
-
-.approval-line span {
-  color: var(--muted);
-}
-
-@media (max-width: 900px) {
-  .pending-grid {
-    grid-template-columns: 1fr;
-  }
-}
+.empty { text-align: center; padding: 24px; color: var(--muted); }
+.pager { display: flex; align-items: center; gap: 12px; margin-top: 12px; justify-content: center; }
+.btn-sm { padding: 4px 12px; font-size: 13px; }
+.danger { background: var(--danger); color: #fff; border-color: var(--danger); }
 </style>

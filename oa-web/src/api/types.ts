@@ -199,3 +199,74 @@ export interface EmployeeArchive {
   contractEnd?: string
   createTime?: string
 }
+
+// ---- attendance-service ----
+export interface Shift {
+  id: number
+  shiftName: string
+  startTime: string
+  endTime: string
+  flexStart?: string
+  flexEnd?: string
+  status: number
+}
+
+export interface PunchVO {
+  message: string
+  userId: number
+  recordDate: string
+  punchTime: string
+  statusLabel: string
+  lateMinutes?: number
+  earlyMinutes?: number
+}
+
+export interface AttendanceRecord {
+  id: number
+  userId: number
+  realName?: string
+  deptName?: string
+  recordDate: string
+  punchInTime?: string
+  punchOutTime?: string
+  lateMinutes?: number
+  earlyMinutes?: number
+  workHours?: number
+  statusLabel: string
+}
+
+// ---- approval-service ----
+export interface ApplicationVO {
+  id: number
+  applicationNo: string
+  userId: number
+  applicantName?: string
+  deptName?: string
+  appType: number
+  appTypeText: string
+  leaveType?: number
+  leaveTypeText?: string
+  startTime: string
+  endTime: string
+  duration: number
+  reason: string
+  status: number
+  statusText: string
+  currentApproverName?: string
+  createTime: string
+}
+
+export interface ApplicationDetail extends ApplicationVO {
+  attachments?: string[]
+  timeline: ApprovalTimeline[]
+}
+
+export interface ApprovalTimeline {
+  id: number
+  approverId: number
+  approverName: string
+  action: number
+  actionText: string
+  comment: string
+  actionTime: string
+}

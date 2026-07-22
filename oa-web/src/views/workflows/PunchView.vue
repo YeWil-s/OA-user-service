@@ -3,114 +3,132 @@
     <div class="page-head">
       <div>
         <h2 class="page-title">考勤打卡</h2>
-        <p class="page-subtitle">今日打卡、本月概览与异常提醒</p>
+        <p class="page-subtitle">{{ today }}</p>
       </div>
-      <span class="mock-banner">考勤后端未完成，当前为界面流程</span>
     </div>
 
-    <div class="grid-3">
-      <section class="panel panel-pad punch-panel">
-        <CalendarCheck class="punch-icon" />
-        <h3>{{ statusText }}</h3>
-        <p>{{ now }}</p>
-        <div class="toolbar punch-actions">
-          <button class="btn primary" @click="punchIn"><LogIn class="icon" />上班打卡</button>
-          <button class="btn ghost" @click="punchOut"><LogOut class="icon" />下班打卡</button>
+    <div class="punch-center">
+      <div class="punch-card">
+        <div class="punch-time">{{ now }}</div>
+        <div class="punch-status">
+          <span v-if="punchedIn && !punchedOut" class="pill success">已打上班卡</span>
+          <span v-else-if="punchedOut" class="pill success">今日打卡完成</span>
+          <span v-else class="pill muted">未打卡</span>
         </div>
-      </section>
-      <article v-for="item in stats" :key="item.label" class="panel stat">
-        <span class="stat-label">{{ item.label }}</span>
-        <strong class="stat-value">{{ item.value }}</strong>
-        <span class="stat-meta">{{ item.meta }}</span>
-      </article>
+        <div class="punch-info" v-if="lastPunch">
+          <p v-if="lastPunch.punchInTime">上班: {{ lastPunch.punchInTime }}</p>
+          <p v-if="lastPunch.punchOutTime">下班: {{ lastPunch.punchOutTime }}</p>
+        </div>
+        <div class="punch-actions">
+          <button class="btn primary punch-btn" :disabled="punchedIn" @click="doPunchIn">上班打卡</button>
+          <button class="btn punch-btn" :disabled="!punchedIn || punchedOut" @click="doPunchOut">下班打卡</button>
+        </div>
+        <p v-if="punchMsg" class="punch-msg">{{ punchMsg }}</p>
+      </div>
     </div>
 
     <section class="panel panel-pad">
-      <h3 class="section-title">今日记录</h3>
-      <div class="record-grid">
-        <div><span>上班打卡</span><strong>{{ punch.in || '-' }}</strong></div>
-        <div><span>下班打卡</span><strong>{{ punch.out || '-' }}</strong></div>
-        <div><span>打卡地点</span><strong>办公区 Wi-Fi</strong></div>
+      <h3>本月考勤记录</h3>
+      <div v-if="loading" class="empty">加载中...</div>
+      <div v-else-if="records.length === 0" class="empty">暂无记录</div>
+      <div v-else class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th>日期</th><th>上班</th><th>下班</th><th>迟到(分)</th><th>早退(分)</th><th>工时</th><th>状态</th></tr></thead>
+          <tbody>
+            <tr v-for="r in records" :key="r.id">
+              <td>{{ r.recordDate }}</td>
+              <td>{{ r.punchInTime ?? '-' }}</td>
+              <td>{{ r.punchOutTime ?? '-' }}</td>
+              <td>{{ r.lateMinutes ?? '-' }}</td>
+              <td>{{ r.earlyMinutes ?? '-' }}</td>
+              <td>{{ r.workHours ?? '-' }}</td>
+              <td>{{ r.statusLabel }}</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </section>
   </section>
 </template>
 
 <script setup lang="ts">
-import { CalendarCheck, LogIn, LogOut } from 'lucide-vue-next'
-import { computed, reactive, ref } from 'vue'
+import { onMounted, onUnmounted, ref } from 'vue'
+import { attendanceApi } from '@/api/services'
+import type { AttendanceRecord, PunchVO } from '@/api/types'
 
-const punch = reactive({ in: '', out: '' })
-const now = ref(new Date().toLocaleString())
-setInterval(() => (now.value = new Date().toLocaleString()), 1000)
+const now = ref('')
+const today = new Date().toISOString().slice(0, 10)
+let timer: ReturnType<typeof setInterval>
 
-const statusText = computed(() => punch.out ? '今日考勤完成' : punch.in ? '已打上班卡' : '等待打卡')
-const stats = [
-  { label: '本月正常', value: 18, meta: '工作日统计' },
-  { label: '迟到/早退', value: 2, meta: '待主管确认' }
-]
+const punchedIn = ref(false)
+const punchedOut = ref(false)
+const punchMsg = ref('')
+const lastPunch = ref<Partial<AttendanceRecord>>({})
+const records = ref<AttendanceRecord[]>([])
+const loading = ref(false)
 
-function punchIn() { punch.in = new Date().toLocaleTimeString() }
-function punchOut() { punch.out = new Date().toLocaleTimeString() }
+onMounted(() => {
+  updateTime()
+  timer = setInterval(updateTime, 1000)
+  loadRecords()
+  loadTodayStatus()
+})
+
+onUnmounted(() => clearInterval(timer))
+
+function updateTime() { now.value = new Date().toLocaleTimeString() }
+
+async function loadTodayStatus() {
+  try {
+    const res = await attendanceApi.myRecords({ pageNum: 1, pageSize: 1 })
+    const todayRecord = (res.records ?? [])[0]
+    if (todayRecord) {
+      lastPunch.value = todayRecord
+      punchedIn.value = !!todayRecord.punchInTime
+      punchedOut.value = !!todayRecord.punchOutTime
+    }
+  } catch { /* ignore */ }
+}
+
+async function loadRecords() {
+  loading.value = true
+  const month = today.slice(0, 7)
+  try {
+    const res = await attendanceApi.myRecords({ month, pageNum: 1, pageSize: 31 })
+    records.value = res.records ?? []
+  } catch { /* ignore */ }
+  loading.value = false
+}
+
+async function doPunchIn() {
+  try {
+    const res: PunchVO = await attendanceApi.punchIn()
+    punchMsg.value = res.message
+    punchedIn.value = true
+    loadTodayStatus()
+    loadRecords()
+  } catch (e: unknown) { punchMsg.value = (e as Error).message }
+}
+
+async function doPunchOut() {
+  try {
+    const res: PunchVO = await attendanceApi.punchOut()
+    punchMsg.value = res.message
+    punchedOut.value = true
+    loadTodayStatus()
+    loadRecords()
+  } catch (e: unknown) { punchMsg.value = (e as Error).message }
+}
 </script>
 
 <style scoped>
-.punch-panel {
-  min-height: 220px;
-  display: grid;
-  place-items: center;
-  text-align: center;
-}
-
-.punch-icon {
-  width: 52px;
-  height: 52px;
-  color: var(--primary);
-}
-
-.punch-panel h3 {
-  margin: 8px 0 0;
-  font-size: 22px;
-}
-
-.punch-panel p {
-  margin: 0;
-  color: var(--muted);
-}
-
-.punch-actions {
-  justify-content: center;
-}
-
-.section-title {
-  margin: 0 0 14px;
-}
-
-.record-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.record-grid div {
-  min-height: 86px;
-  display: grid;
-  align-content: center;
-  gap: 8px;
-  padding: 0 14px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--surface-soft);
-}
-
-.record-grid span {
-  color: var(--muted);
-  font-size: 13px;
-}
-
-@media (max-width: 760px) {
-  .record-grid {
-    grid-template-columns: 1fr;
-  }
-}
+.punch-center { display: grid; place-items: center; padding: 24px; }
+.punch-card { text-align: center; padding: 32px; border-radius: 12px; background: var(--surface-soft); border: 1px solid var(--border); min-width: 320px; }
+.punch-time { font-size: 36px; font-weight: 700; margin-bottom: 8px; }
+.punch-status { margin-bottom: 12px; }
+.punch-info p { margin: 4px 0; color: var(--muted); }
+.punch-actions { display: flex; gap: 12px; justify-content: center; margin: 16px 0; }
+.punch-btn { width: 120px; height: 44px; }
+.punch-msg { margin-top: 8px; color: var(--primary); font-weight: 500; }
+.empty { text-align: center; padding: 24px; color: var(--muted); }
 </style>

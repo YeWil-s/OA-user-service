@@ -1,8 +1,11 @@
 import { http } from './http'
 import type {
+  ApplicationDetail,
+  ApplicationVO,
   ApprovalStats,
   Asset,
   AssetRecord,
+  AttendanceRecord,
   AttendanceTrend,
   DeptMetric,
   DeptNode,
@@ -14,7 +17,9 @@ import type {
   Notice,
   PageResult,
   Position,
+  PunchVO,
   Role,
+  Shift,
   StaffChange,
   VisualOverview
 } from './types'
@@ -90,4 +95,23 @@ export const assetApi = {
   // 合同管理
   contracts: (params: Record<string, unknown>) => http.get<unknown, PageResult<EmployeeArchive>>('/api/asset/contracts', { params }),
   expiringContracts: (days?: number) => http.get<unknown, PageResult<EmployeeArchive>>('/api/asset/contracts/expiring', { params: { days: days ?? 30 } })
+}
+
+export const attendanceApi = {
+  shifts: (params: Record<string, unknown>) => http.get<unknown, PageResult<Shift>>('/api/attendance/shifts', { params }),
+  punchIn: () => http.post<unknown, PunchVO>('/api/attendance/punch/in', {}),
+  punchOut: () => http.post<unknown, PunchVO>('/api/attendance/punch/out', {}),
+  myRecords: (params: Record<string, unknown>) => http.get<unknown, PageResult<AttendanceRecord>>('/api/attendance/records/mine', { params }),
+  deptRecords: (params: Record<string, unknown>) => http.get<unknown, PageResult<AttendanceRecord>>('/api/attendance/records/dept', { params }),
+  allRecords: (params: Record<string, unknown>) => http.get<unknown, PageResult<AttendanceRecord>>('/api/attendance/records/all', { params })
+}
+
+export const approvalApi = {
+  submit: (payload: { appType: number; leaveType?: number; startTime: string; endTime: string; reason: string }) => http.post<unknown, ApplicationDetail>('/api/approval/applications', payload),
+  myApplications: (params: Record<string, unknown>) => http.get<unknown, PageResult<ApplicationVO>>('/api/approval/applications', { params }),
+  detail: (id: number) => http.get<unknown, ApplicationDetail>(`/api/approval/applications/${id}`),
+  cancel: (id: number) => http.put(`/api/approval/applications/${id}/cancel`),
+  pending: (params: Record<string, unknown>) => http.get<unknown, PageResult<ApplicationVO>>('/api/approval/pending', { params }),
+  approve: (id: number, payload: { approved: boolean; comment: string }) => http.put(`/api/approval/pending/${id}/approve`, payload),
+  processed: (params: Record<string, unknown>) => http.get<unknown, PageResult<ApplicationVO>>('/api/approval/processed', { params })
 }
