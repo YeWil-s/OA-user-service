@@ -1,0 +1,68 @@
+import { http } from './http'
+import type {
+  ApprovalStats,
+  AttendanceTrend,
+  DeptMetric,
+  DeptNode,
+  Employee,
+  LoginUser,
+  MenuNode,
+  Message,
+  Notice,
+  PageResult,
+  Position,
+  Role,
+  VisualOverview
+} from './types'
+
+export const authApi = {
+  login: (payload: { username: string; password: string }) => http.post<unknown, LoginUser>('/api/user/login', payload),
+  logout: () => http.post('/api/user/logout')
+}
+
+export const systemApi = {
+  employees: (params: Record<string, unknown>) => http.get<unknown, PageResult<Employee>>('/api/user/employees', { params }),
+  addEmployee: (payload: Partial<Employee>) => http.post('/api/user/employees', payload),
+  updateEmployee: (id: number, payload: Partial<Employee>) => http.put(`/api/user/employees/${id}`, payload),
+  deleteEmployee: (id: number) => http.delete(`/api/user/employees/${id}`),
+  resetPassword: (id: number) => http.put(`/api/user/employees/${id}/reset-pwd`),
+  depts: () => http.get<unknown, DeptNode[]>('/api/user/depts'),
+  addDept: (payload: Partial<DeptNode>) => http.post('/api/user/depts', payload),
+  updateDept: (id: number, payload: Partial<DeptNode>) => http.put(`/api/user/depts/${id}`, payload),
+  deleteDept: (id: number) => http.delete(`/api/user/depts/${id}`),
+  positions: (params: Record<string, unknown>) => http.get<unknown, PageResult<Position>>('/api/user/positions', { params }),
+  addPosition: (payload: Partial<Position>) => http.post('/api/user/positions', payload),
+  updatePosition: (id: number, payload: Partial<Position>) => http.put(`/api/user/positions/${id}`, payload),
+  deletePosition: (id: number) => http.delete(`/api/user/positions/${id}`),
+  roles: (params: Record<string, unknown>) => http.get<unknown, PageResult<Role>>('/api/user/roles', { params }),
+  addRole: (payload: Partial<Role>) => http.post('/api/user/roles', payload),
+  updateRole: (id: number, payload: Partial<Role>) => http.put(`/api/user/roles/${id}`, payload),
+  deleteRole: (id: number) => http.delete(`/api/user/roles/${id}`),
+  roleMenus: (id: number) => http.get<unknown, number[]>(`/api/user/roles/${id}/menus`),
+  assignRoleMenus: (id: number, menuIds: number[]) => http.put(`/api/user/roles/${id}/menus`, menuIds),
+  menus: () => http.get<unknown, MenuNode[]>('/api/user/menus'),
+  addMenu: (payload: Partial<MenuNode>) => http.post('/api/user/menus', payload),
+  updateMenu: (id: number, payload: Partial<MenuNode>) => http.put(`/api/user/menus/${id}`, payload),
+  deleteMenu: (id: number) => http.delete(`/api/user/menus/${id}`)
+}
+
+export const noticeApi = {
+  notices: (params: Record<string, unknown>) => http.get<unknown, PageResult<Notice>>('/api/notice/list', { params }),
+  publish: (payload: Partial<Notice>) => http.post<unknown, number>('/api/notice/list', payload),
+  update: (id: number, payload: Partial<Notice>) => http.put(`/api/notice/list/${id}`, payload),
+  offline: (id: number) => http.delete(`/api/notice/list/${id}`),
+  messages: (params: Record<string, unknown>) => http.get<unknown, PageResult<Message>>('/api/notice/messages', { params }),
+  createMessage: (payload: Partial<Message>) => http.post<unknown, number>('/api/notice/messages', payload),
+  markRead: (id: number) => http.put(`/api/notice/messages/${id}/read`),
+  unreadCount: () => http.get<unknown, { noticeUnread: number; messageUnread: number; totalUnread: number }>('/api/notice/unread-count')
+}
+
+export const visualApi = {
+  overview: (month?: string) => http.get<unknown, VisualOverview>('/api/visual/dashboard/overview', { params: { month } }),
+  deptDistribution: (month?: string) => http.get<unknown, DeptMetric[]>('/api/visual/dashboard/dept-distribution', { params: { month } }),
+  attendanceTrend: (endMonth?: string, months = 6) => http.get<unknown, AttendanceTrend[]>('/api/visual/dashboard/attendance-trend', { params: { endMonth, months } }),
+  deptOvertime: (month?: string) => http.get<unknown, DeptMetric[]>('/api/visual/dashboard/dept-overtime', { params: { month } }),
+  approvalStats: (month?: string) => http.get<unknown, ApprovalStats>('/api/visual/dashboard/approval-stats', { params: { month } }),
+  approvalSpeed: (month?: string) => http.get<unknown, Array<{ deptId: number; deptName: string; totalApplications: number; avgApprovalHours: number }>>('/api/visual/dashboard/approval-speed', { params: { month } }),
+  sync: (month?: string) => http.post('/api/visual/statistics/sync', null, { params: { month } })
+}
