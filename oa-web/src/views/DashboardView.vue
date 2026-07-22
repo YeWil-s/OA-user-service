@@ -6,28 +6,39 @@
         <p class="page-subtitle">组织、考勤、审批与通知的运行概览</p>
       </div>
       <div class="toolbar">
-        <span v-if="mocked" class="mock-banner">
-          <Info class="icon" />
-          当前显示演示数据
-        </span>
-        <button class="btn" type="button" @click="load">
+        <button class="btn" type="button" :disabled="loading" @click="load">
           <RefreshCw class="icon" />
-          刷新
+          {{ loading ? '刷新中' : '刷新' }}
         </button>
       </div>
     </div>
 
-    <div class="grid-4">
+    <p v-if="error" class="error-banner">{{ error }}</p>
+
+    <div v-if="loading" class="grid-4" aria-label="指标加载中">
+      <article v-for="index in 4" :key="index" class="panel stat stat-skeleton">
+        <span class="skeleton skeleton-line" />
+        <strong class="skeleton skeleton-value" />
+        <span class="skeleton skeleton-line" />
+      </article>
+    </div>
+    <div v-else class="grid-4">
       <article v-for="item in stats" :key="item.label" class="panel stat">
         <span class="stat-label">{{ item.label }}</span>
-        <strong class="stat-value">{{ item.value }}</strong>
-        <span class="stat-meta">{{ item.meta }}</span>
+        <strong class="stat-value"><AnimatedNumber :value="item.value" /></strong>
+        <span class="stat-meta" :class="{ positive: statTrend(item.label) > 0, negative: statTrend(item.label) < 0 }">
+          <TrendingUp v-if="statTrend(item.label) > 0" class="trend-icon" />
+          <TrendingDown v-else-if="statTrend(item.label) < 0" class="trend-icon" />
+          <Minus v-else class="trend-icon" />
+          {{ item.meta }}
+        </span>
+        <SparklineBars :values="statSparkline(item.label)" />
       </article>
     </div>
 
     <div class="grid-2">
-      <ChartPanel title="近 6 个月考勤趋势" :option="attendanceOption" />
-      <ChartPanel title="部门人数分布" :option="deptOption" />
+      <ChartPanel title="近 6 个月考勤趋势" :option="attendanceOption" :loading="loading" />
+      <ChartPanel title="部门人数分布" :option="deptOption" :loading="loading" />
     </div>
 
     <div class="grid-2">
@@ -76,24 +87,43 @@ import {
   Bell,
   CalendarCheck,
   ClipboardCheck,
-  Info,
   MessageSquarePlus,
+  Minus,
   RefreshCw,
+  TrendingDown,
+  TrendingUp,
   UserPlus,
   UsersRound
 } from 'lucide-vue-next'
 import { computed, onMounted, ref } from 'vue'
+import AnimatedNumber from '@/components/AnimatedNumber.vue'
 import ChartPanel from '@/components/ChartPanel.vue'
-import { withFallback } from '@/api/http'
-import { visualApi, noticeApi } from '@/api/services'
-import { mockAttendanceTrend, mockDeptDistribution, mockOverview } from '@/api/mock'
+import SparklineBars from '@/components/SparklineBars.vue'
+import { noticeApi, visualApi } from '@/api/services'
 import type { AttendanceTrend, DeptMetric, VisualOverview } from '@/api/types'
 
-const overview = ref<VisualOverview>(mockOverview)
-const trends = ref<AttendanceTrend[]>(mockAttendanceTrend)
-const depts = ref<DeptMetric[]>(mockDeptDistribution)
-const unread = ref(3)
-const mocked = ref(false)
+const emptyOverview: VisualOverview = {
+  statMonth: '',
+  totalEmployees: 0,
+  newHires: 0,
+  resignations: 0,
+  attendanceRate: 0,
+  overtimeHours: 0,
+  totalApplications: 0,
+  approvedCount: 0,
+  rejectedCount: 0,
+  pendingCount: 0,
+  approvalPassRate: 0,
+  avgApprovalHours: 0,
+  refreshTime: ''
+}
+
+const overview = ref<VisualOverview>({ ...emptyOverview })
+const trends = ref<AttendanceTrend[]>([])
+const depts = ref<DeptMetric[]>([])
+const unread = ref(0)
+const loading = ref(false)
+const error = ref('')
 
 const stats = computed(() => [
   { label: '在职员工', value: overview.value.totalEmployees, meta: `本月入职 ${overview.value.newHires}` },
@@ -102,15 +132,35 @@ const stats = computed(() => [
   { label: '未读消息', value: unread.value, meta: '公告与站内信' }
 ])
 
+function statTrend(label: string) {
+  if (label === '在职员工') return overview.value.newHires - overview.value.resignations
+  if (label === '出勤率' && trends.value.length > 1) {
+    return trends.value[trends.value.length - 1].attendanceRate - trends.value[0].attendanceRate
+  }
+  if (label === '审批申请') return overview.value.approvedCount - overview.value.rejectedCount
+  return 0
+}
+
+function statSparkline(label: string) {
+  if (label === '在职员工') {
+    return [Math.max(0, overview.value.totalEmployees - overview.value.newHires), overview.value.totalEmployees]
+  }
+  if (label === '出勤率') return trends.value.map((item) => item.attendanceRate)
+  if (label === '审批申请') {
+    return [overview.value.approvedCount, overview.value.rejectedCount, overview.value.pendingCount]
+  }
+  return [0, unread.value]
+}
+
 const attendanceOption = computed(() => ({
   tooltip: { trigger: 'axis' },
   grid: { left: 36, right: 18, top: 32, bottom: 30 },
   xAxis: { type: 'category', data: trends.value.map((item) => item.statMonth) },
   yAxis: { type: 'value' },
   series: [
-    { name: '正常', type: 'line', smooth: true, data: trends.value.map((item) => item.normalCount), color: '#126f83' },
-    { name: '迟到', type: 'line', smooth: true, data: trends.value.map((item) => item.lateCount), color: '#b87716' },
-    { name: '旷工', type: 'bar', data: trends.value.map((item) => item.absentCount), color: '#be3a45' }
+    { name: '正常', type: 'line', smooth: true, data: trends.value.map((item) => item.normalCount), color: '#3b82f6' },
+    { name: '迟到', type: 'line', smooth: true, data: trends.value.map((item) => item.lateCount), color: '#f97316' },
+    { name: '旷工', type: 'bar', data: trends.value.map((item) => item.absentCount), color: '#ef4444' }
   ]
 }))
 
@@ -121,7 +171,7 @@ const deptOption = computed(() => ({
       type: 'pie',
       radius: ['46%', '72%'],
       data: depts.value.map((item) => ({ name: item.deptName, value: item.value })),
-      color: ['#126f83', '#b87716', '#6b5db8', '#1f8a58', '#be3a45']
+      color: ['#3b82f6', '#8b5cf6', '#06b6d4', '#22c55e', '#ec4899']
     }
   ]
 }))
@@ -129,7 +179,7 @@ const deptOption = computed(() => ({
 const todos = computed(() => [
   { title: '待审批申请', desc: '请假、加班、外出申请', count: overview.value.pendingCount, tone: 'warn', icon: ClipboardCheck },
   { title: '未读消息', desc: '公告和站内通知', count: unread.value, tone: '', icon: Bell },
-  { title: '考勤异常', desc: '迟到、早退、缺卡待确认', count: Math.max(2, Math.round(overview.value.totalEmployees * 0.03)), tone: 'danger', icon: CalendarCheck }
+  { title: '考勤异常', desc: '迟到、早退、缺卡待确认', count: Math.round(overview.value.totalEmployees * 0.03), tone: 'danger', icon: CalendarCheck }
 ])
 
 const quickLinks = [
@@ -140,23 +190,57 @@ const quickLinks = [
 ]
 
 async function load() {
-  const [overviewResult, trendResult, deptResult, unreadResult] = await Promise.all([
-    withFallback(visualApi.overview(), mockOverview),
-    withFallback(visualApi.attendanceTrend(undefined, 6), mockAttendanceTrend),
-    withFallback(visualApi.deptDistribution(), mockDeptDistribution),
-    withFallback(noticeApi.unreadCount(), { noticeUnread: 1, messageUnread: 2, totalUnread: 3 })
-  ])
-  overview.value = overviewResult.data
-  trends.value = trendResult.data
-  depts.value = deptResult.data
-  unread.value = unreadResult.data.totalUnread
-  mocked.value = overviewResult.mocked || trendResult.mocked || deptResult.mocked || unreadResult.mocked
+  loading.value = true
+  error.value = ''
+  try {
+    const [overviewResult, trendResult, deptResult, unreadResult] = await Promise.all([
+      visualApi.overview(),
+      visualApi.attendanceTrend(undefined, 6),
+      visualApi.deptDistribution(),
+      noticeApi.unreadCount()
+    ])
+    overview.value = overviewResult
+    trends.value = trendResult
+    depts.value = deptResult
+    unread.value = unreadResult.totalUnread
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : '数据加载失败'
+  } finally {
+    loading.value = false
+  }
 }
 
 onMounted(load)
 </script>
 
 <style scoped>
+.stat-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.stat-meta.positive {
+  color: var(--success);
+}
+
+.stat-meta.negative {
+  color: var(--danger);
+}
+
+.trend-icon {
+  width: 13px;
+  height: 13px;
+}
+
+.stat-skeleton {
+  grid-template-columns: 1fr;
+}
+
+.stat-skeleton .skeleton-line {
+  width: 72%;
+}
+
 .section-head {
   display: flex;
   align-items: center;

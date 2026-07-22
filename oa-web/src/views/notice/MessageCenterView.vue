@@ -6,22 +6,25 @@
         <p class="page-subtitle">审批通知、考勤通知、系统通知</p>
       </div>
       <div class="toolbar">
-        <span v-if="mocked" class="mock-banner">演示数据</span>
-        <button class="btn" @click="load"><RefreshCw class="icon" />刷新</button>
+        <button class="btn" :disabled="loading" @click="load"><RefreshCw class="icon" />{{ loading ? '刷新中' : '刷新' }}</button>
         <button class="btn primary" @click="openCreate"><Send class="icon" />发送</button>
       </div>
     </div>
 
+    <p v-if="error" class="error-banner">{{ error }}</p>
+    <p v-if="message" class="success-banner">{{ message }}</p>
+
     <section class="message-list">
-      <article v-for="row in rows" :key="row.id" class="panel message-item" :class="{ unread: row.isRead === 0 }" @click="markRead(row)">
+      <article v-for="row in rows" :key="row.id" class="panel message-item" :class="{ unread: !isRead(row) }" @click="markRead(row)">
         <div class="message-icon"><Bell class="icon" /></div>
         <div>
           <h3>{{ row.title }}</h3>
           <p>{{ row.content }}</p>
           <span>{{ messageType(row.msgType) }} · {{ row.createTime || '-' }}</span>
         </div>
-        <StatusPill :value="row.isRead" :map="{ '0': '未读', '1': '已读' }" :tone-map="{ '0': 'warn', '1': 'success' }" />
+        <StatusPill :value="isRead(row) ? 1 : 0" :map="{ '0': '未读', '1': '已读' }" :tone-map="{ '0': 'warn', '1': 'success' }" />
       </article>
+      <div v-if="!loading && rows.length === 0" class="panel empty">暂无消息数据</div>
     </section>
 
     <ModalDialog v-model="dialogOpen" title="发送站内消息">
@@ -31,7 +34,7 @@
         <label class="form-item full"><span class="form-label">标题</span><input v-model="form.title" class="field" /></label>
         <label class="form-item full"><span class="form-label">内容</span><textarea v-model="form.content" class="textarea" /></label>
       </div>
-      <template #footer><button class="btn" @click="dialogOpen = false">取消</button><button class="btn primary" @click="send">发送</button></template>
+      <template #footer><button class="btn" @click="dialogOpen = false">取消</button><button class="btn primary" :disabled="saving" @click="send">{{ saving ? '发送中' : '发送' }}</button></template>
     </ModalDialog>
   </section>
 </template>
@@ -41,26 +44,66 @@ import { Bell, RefreshCw, Send } from 'lucide-vue-next'
 import { onMounted, reactive, ref } from 'vue'
 import ModalDialog from '@/components/ModalDialog.vue'
 import StatusPill from '@/components/StatusPill.vue'
-import { withFallback } from '@/api/http'
 import { noticeApi } from '@/api/services'
-import { mockMessages } from '@/api/mock'
 import type { Message } from '@/api/types'
 
 const rows = ref<Message[]>([])
-const mocked = ref(false)
+const loading = ref(false)
+const saving = ref(false)
+const error = ref('')
+const message = ref('')
 const dialogOpen = ref(false)
 const form = reactive<Partial<Message>>({})
 const messageType = (value?: number) => ({ 1: '审批通知', 2: '考勤通知', 3: '系统通知' }[value ?? 3])
+const pageRows = <T,>(page: { records?: T[]; list?: T[] }) => page.records || page.list || []
+const isRead = (row: Message) => row.read === true || row.isRead === 1
 
 async function load() {
-  const result = await withFallback(noticeApi.messages({ pageNum: 1, pageSize: 20 }), mockMessages)
-  rows.value = result.data.records || result.data.list || []
-  mocked.value = result.mocked
+  loading.value = true
+  error.value = ''
+  try {
+    const result = await noticeApi.messages({ current: 1, size: 20 })
+    rows.value = pageRows(result)
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : '消息数据加载失败'
+  } finally {
+    loading.value = false
+  }
 }
 
-function openCreate() { Object.assign(form, { userId: 1, msgType: 3, title: '', content: '' }); dialogOpen.value = true }
-async function send() { if (!mocked.value) await noticeApi.createMessage(form); rows.value.unshift({ id: Date.now(), isRead: 0, createTime: new Date().toLocaleString(), ...form } as Message); dialogOpen.value = false }
-async function markRead(row: Message) { if (row.isRead === 1) return; if (!mocked.value) await noticeApi.markRead(row.id); row.isRead = 1 }
+function openCreate() {
+  Object.assign(form, { userId: undefined, msgType: 3, title: '', content: '' })
+  dialogOpen.value = true
+}
+
+async function send() {
+  saving.value = true
+  error.value = ''
+  message.value = ''
+  try {
+    await noticeApi.createMessage(form)
+    message.value = '站内消息已发送'
+    dialogOpen.value = false
+    await load()
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : '消息发送失败'
+  } finally {
+    saving.value = false
+  }
+}
+
+async function markRead(row: Message) {
+  if (isRead(row)) return
+  error.value = ''
+  try {
+    await noticeApi.markRead(row.id)
+    row.read = true
+    row.isRead = 1
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : '标记已读失败'
+  }
+}
+
 onMounted(load)
 </script>
 

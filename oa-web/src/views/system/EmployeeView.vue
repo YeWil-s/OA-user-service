@@ -6,10 +6,9 @@
         <p class="page-subtitle">员工档案、部门岗位、账号状态维护</p>
       </div>
       <div class="toolbar">
-        <span v-if="mocked" class="mock-banner">演示数据</span>
-        <button class="btn" type="button" @click="load">
+        <button class="btn" type="button" :disabled="loading" @click="load">
           <RefreshCw class="icon" />
-          刷新
+          {{ loading ? '刷新中' : '刷新' }}
         </button>
         <button class="btn primary" type="button" @click="openCreate">
           <UserPlus class="icon" />
@@ -17,6 +16,9 @@
         </button>
       </div>
     </div>
+
+    <p v-if="error" class="error-banner">{{ error }}</p>
+    <p v-if="message" class="success-banner">{{ message }}</p>
 
     <section class="panel panel-pad">
       <div class="toolbar filters">
@@ -45,12 +47,13 @@
             </tr>
           </thead>
           <tbody>
+            <SkeletonTableRows v-if="loading && rows.length === 0" :columns="8" />
             <tr v-for="row in rows" :key="row.id">
               <td>{{ row.username }}</td>
               <td>{{ row.realName }}</td>
               <td>{{ row.phone || '-' }}</td>
-              <td>{{ deptName(row.deptId) }}</td>
-              <td>{{ positionName(row.positionId) }}</td>
+              <td>{{ row.deptName || deptName(row.deptId) }}</td>
+              <td>{{ row.positionName || positionName(row.positionId) }}</td>
               <td>{{ row.entryDate || '-' }}</td>
               <td>
                 <StatusPill
@@ -73,6 +76,9 @@
                 </div>
               </td>
             </tr>
+            <tr v-if="!loading && rows.length === 0">
+              <td colspan="8"><div class="empty">暂无员工数据</div></td>
+            </tr>
           </tbody>
         </table>
       </div>
@@ -90,7 +96,7 @@
         </label>
         <label class="form-item">
           <span class="form-label">初始密码</span>
-          <input v-model="form.password" class="field" type="password" />
+          <input v-model="form.password" class="field" type="password" :placeholder="editing?.id ? '不修改请留空' : '请输入初始密码'" />
         </label>
         <label class="form-item">
           <span class="form-label">手机号</span>
@@ -134,7 +140,7 @@
       </div>
       <template #footer>
         <button class="btn" type="button" @click="dialogOpen = false">取消</button>
-        <button class="btn primary" type="button" @click="save">保存</button>
+        <button class="btn primary" type="button" :disabled="saving" @click="save">{{ saving ? '保存中' : '保存' }}</button>
       </template>
     </ModalDialog>
   </section>
@@ -144,16 +150,18 @@
 import { KeyRound, Pencil, RefreshCw, Trash2, UserPlus } from 'lucide-vue-next'
 import { computed, onMounted, reactive, ref } from 'vue'
 import ModalDialog from '@/components/ModalDialog.vue'
+import SkeletonTableRows from '@/components/SkeletonTableRows.vue'
 import StatusPill from '@/components/StatusPill.vue'
-import { withFallback } from '@/api/http'
 import { systemApi } from '@/api/services'
-import { mockDepts, mockEmployees, mockPositions } from '@/api/mock'
 import type { DeptNode, Employee, Position } from '@/api/types'
 
 const rows = ref<Employee[]>([])
-const depts = ref<DeptNode[]>(mockDepts)
-const positions = ref<Position[]>(mockPositions.records || [])
-const mocked = ref(false)
+const depts = ref<DeptNode[]>([])
+const positions = ref<Position[]>([])
+const loading = ref(false)
+const saving = ref(false)
+const error = ref('')
+const message = ref('')
 const dialogOpen = ref(false)
 const editing = ref<Employee | null>(null)
 const query = reactive({ realName: '', status: '' })
@@ -173,16 +181,45 @@ function positionName(id?: number) {
   return positions.value.find((item) => item.id === id)?.positionName || '-'
 }
 
+function pageRows<T>(page: { records?: T[]; list?: T[] }) {
+  return page.records || page.list || []
+}
+
+function employeePayload() {
+  const payload: Partial<Employee> = {
+    username: form.username,
+    realName: form.realName,
+    phone: form.phone,
+    email: form.email,
+    gender: form.gender,
+    deptId: form.deptId,
+    positionId: form.positionId,
+    entryDate: form.entryDate,
+    status: form.status
+  }
+  if (form.password) {
+    payload.password = form.password
+  }
+  return payload
+}
+
 async function load() {
-  const [employeeResult, deptResult, positionResult] = await Promise.all([
-    withFallback(systemApi.employees({ pageNum: 1, pageSize: 20, ...query }), mockEmployees),
-    withFallback(systemApi.depts(), mockDepts),
-    withFallback(systemApi.positions({ pageNum: 1, pageSize: 100 }), mockPositions)
-  ])
-  rows.value = employeeResult.data.records || employeeResult.data.list || []
-  depts.value = deptResult.data
-  positions.value = positionResult.data.records || positionResult.data.list || []
-  mocked.value = employeeResult.mocked || deptResult.mocked || positionResult.mocked
+  loading.value = true
+  error.value = ''
+  try {
+    const [employeeResult, deptResult, positionResult] = await Promise.all([
+      systemApi.employees({ pageNum: 1, pageSize: 20, realName: query.realName, status: query.status }),
+      systemApi.depts(),
+      systemApi.positions({ pageNum: 1, pageSize: 100 })
+    ])
+    rows.value = pageRows(employeeResult)
+    depts.value = deptResult
+    positions.value = pageRows(positionResult)
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : '员工数据加载失败'
+  } finally {
+    loading.value = false
+  }
 }
 
 function openCreate() {
@@ -198,23 +235,47 @@ function openEdit(row: Employee) {
 }
 
 async function save() {
-  if (editing.value?.id) {
-    if (!mocked.value) await systemApi.updateEmployee(editing.value.id, form)
-    Object.assign(editing.value, form)
-  } else {
-    if (!mocked.value) await systemApi.addEmployee(form)
-    rows.value.unshift({ id: Date.now(), ...form } as Employee)
+  saving.value = true
+  error.value = ''
+  message.value = ''
+  try {
+    if (editing.value?.id) {
+      await systemApi.updateEmployee(editing.value.id, employeePayload())
+      message.value = '员工信息已更新'
+    } else {
+      await systemApi.addEmployee(employeePayload())
+      message.value = '员工已新增'
+    }
+    dialogOpen.value = false
+    await load()
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : '员工保存失败'
+  } finally {
+    saving.value = false
   }
-  dialogOpen.value = false
 }
 
 async function remove(row: Employee) {
-  if (!mocked.value) await systemApi.deleteEmployee(row.id)
-  rows.value = rows.value.filter((item) => item.id !== row.id)
+  error.value = ''
+  message.value = ''
+  try {
+    await systemApi.deleteEmployee(row.id)
+    message.value = '员工已删除'
+    await load()
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : '员工删除失败'
+  }
 }
 
 async function resetPassword(row: Employee) {
-  if (!mocked.value) await systemApi.resetPassword(row.id)
+  error.value = ''
+  message.value = ''
+  try {
+    await systemApi.resetPassword(row.id)
+    message.value = '密码已重置为默认密码'
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : '密码重置失败'
+  }
 }
 
 onMounted(load)

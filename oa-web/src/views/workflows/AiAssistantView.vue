@@ -5,18 +5,19 @@
         <h2 class="page-title">AI 助手</h2>
         <p class="page-subtitle">智能填单、数据分析、知识问答</p>
       </div>
-      <span class="mock-banner">AI 后端未完成</span>
     </div>
+
+    <p class="error-banner">当前接口文档未提供 AI 助手接口，暂未接入真实服务。</p>
 
     <section class="panel chat-panel">
       <div class="chat-messages">
-        <div v-for="item in messages" :key="item.id" class="chat-row" :class="item.role">
-          <p>{{ item.text }}</p>
+        <div class="chat-row assistant">
+          <p>请在接口文档补充 AI 助手服务路径后接入真实 API。</p>
         </div>
       </div>
       <form class="chat-input" @submit.prevent="send">
-        <input v-model="input" class="field" placeholder="输入问题或办公需求" />
-        <button class="btn primary"><Send class="icon" />发送</button>
+        <input v-model="input" class="field" placeholder="AI 接口未配置，暂不可发送" />
+        <button class="btn primary" disabled><Send class="icon" />发送</button>
       </form>
     </section>
   </section>
@@ -27,16 +28,7 @@ import { Send } from 'lucide-vue-next'
 import { ref } from 'vue'
 
 const input = ref('')
-const messages = ref([
-  { id: 1, role: 'assistant', text: '可以帮你生成请假申请、分析考勤异常、查询 OA 使用规则。' }
-])
-
-function send() {
-  if (!input.value.trim()) return
-  messages.value.push({ id: Date.now(), role: 'user', text: input.value })
-  messages.value.push({ id: Date.now() + 1, role: 'assistant', text: '已收到，后端接入后这里会返回流式 AI 响应。' })
-  input.value = ''
-}
+function send() {}
 </script>
 
 <style scoped>
