@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../features/auth/pages/login_page.dart';
+import '../../features/auth/providers/auth_providers.dart';
 import '../../features/home/pages/home_page.dart';
 import '../../features/messages/pages/messages_page.dart';
 import '../../features/approval/pages/applications_page.dart';
@@ -20,11 +21,17 @@ final routerProvider = Provider<GoRouter>((ref) {
     refreshListenable: authChangeNotifier,
     initialLocation: '/login',
     redirect: (context, state) {
-      final isLoggedIn = authChangeNotifier.value;
+      final user = ref.watch(authProvider).valueOrNull;
+      final isLoggedIn = user != null;
       final isLoginPage = state.matchedLocation == '/login';
 
       if (!isLoggedIn && !isLoginPage) return '/login';
       if (isLoggedIn && isLoginPage) return '/home';
+
+      // 角色守卫：未授权用户访问 /pending 重定向到首页
+      if (state.matchedLocation == '/pending' && !user!.canApprove) {
+        return '/home';
+      }
       return null;
     },
     routes: [

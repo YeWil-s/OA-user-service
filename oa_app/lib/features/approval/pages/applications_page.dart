@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import '../../../../core/network/api_exception.dart';
+import '../../auth/providers/auth_providers.dart';
 import '../providers/approval_provider.dart';
 import '../models/application.dart';
 
@@ -18,9 +20,9 @@ class _ApplicationsPageState extends ConsumerState<ApplicationsPage>
 
   static const _tabs = [
     ('全部', null),
-    ('审批中', 'pending'),
-    ('已通过', 'approved'),
-    ('已驳回', 'rejected'),
+    ('审批中', 1),
+    ('已通过', 2),
+    ('已驳回', 3),
   ];
 
   @override
@@ -44,34 +46,58 @@ class _ApplicationsPageState extends ConsumerState<ApplicationsPage>
   @override
   Widget build(BuildContext context) {
     final appsAsync = ref.watch(myApplicationsProvider);
+    final user = ref.watch(authProvider).valueOrNull;
+    final canApprove = user?.canApprove ?? false;
+    final theme = Theme.of(context);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('我的申请'),
+        actions: [
+          if (canApprove)
+            Container(
+              margin: const EdgeInsets.only(right: 8),
+              child: OutlinedButton.icon(
+                onPressed: () => context.push('/pending'),
+                icon: const Icon(Icons.fact_check_outlined, size: 16),
+                label: const Text('待审批'),
+                style: OutlinedButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+            ),
+        ],
         bottom: TabBar(
           controller: _tabController,
           isScrollable: true,
+          labelStyle: const TextStyle(fontWeight: FontWeight.w600),
           tabs: _tabs.map((t) => Tab(text: t.$1)).toList(),
         ),
       ),
       body: appsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('加载失败: $e')),
+        error: (e, _) => Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.error_outline, size: 48, color: theme.colorScheme.outline),
+              const SizedBox(height: 12),
+              Text(extractErrorMessage(e), style: TextStyle(color: theme.colorScheme.outline)),
+              const SizedBox(height: 16),
+              OutlinedButton(onPressed: () => ref.read(myApplicationsProvider.notifier).fetch(status: _tabs[_tabController.index].$2), child: const Text('重试')),
+            ],
+          ),
+        ),
         data: (apps) => RefreshIndicator(
-          onRefresh: () => ref.read(myApplicationsProvider.notifier).fetch(
-                status: _tabs[_tabController.index].$2,
-              ),
+          onRefresh: () => ref.read(myApplicationsProvider.notifier).fetch(status: _tabs[_tabController.index].$2),
           child: apps.isEmpty
-              ? const Center(child: Text('暂无申请'))
+              ? ListView(children: [SizedBox(height: MediaQuery.of(context).size.height * 0.3, child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.inbox_outlined, size: 56, color: theme.colorScheme.outline), const SizedBox(height: 12), Text('暂无申请', style: TextStyle(color: theme.colorScheme.outline))])))])
               : ListView.builder(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
                   itemCount: apps.length,
-                  itemBuilder: (context, index) {
-                    final app = apps[index];
-                    return _ApplicationCard(
-                      application: app,
-                      onTap: () => context.push('/applications/${app.id}'),
-                    );
-                  },
+                  itemBuilder: (context, index) => _AppCard(app: apps[index], onTap: () => context.push('/applications/${apps[index].id}')),
                 ),
         ),
       ),
@@ -84,87 +110,55 @@ class _ApplicationsPageState extends ConsumerState<ApplicationsPage>
   }
 }
 
-class _ApplicationCard extends StatelessWidget {
-  final Application application;
+class _AppCard extends StatelessWidget {
+  final Application app;
   final VoidCallback onTap;
+  const _AppCard({required this.app, required this.onTap});
 
-  const _ApplicationCard({required this.application, required this.onTap});
-
-  Color _statusColor(String status) {
-    switch (status) {
-      case 'approved': return Colors.green;
-      case 'pending': return Colors.orange;
-      case 'rejected': return Colors.red;
-      case 'cancelled': return Colors.grey;
-      default: return Colors.grey;
-    }
-  }
+  static const _typeIcons = {1: Icons.beach_access, 2: Icons.timer, 3: Icons.airplanemode_active};
+  static const _statusColors = {'approved': Color(0xFF2E7D32), 'pending': Color(0xFFE65100), 'rejected': Color(0xFFC62828), 'cancelled': Color(0xFF757575)};
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final app = application;
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: _statusColor(app.status).withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
+    final sc = _statusColors[app.status] ?? Colors.grey;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: Card(
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              children: [
+                Container(
+                  width: 44, height: 44,
+                  decoration: BoxDecoration(color: sc.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
+                  child: Icon(_typeIcons[app.appType] ?? Icons.edit_note, color: sc, size: 22),
                 ),
-                child: Icon(
-                  app.appType == 1 ? Icons.beach_access : Icons.timer,
-                  color: _statusColor(app.status),
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      app.leaveTypeLabel,
-                      style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${DateFormat('MM-dd HH:mm').format(app.startTime)} - ${DateFormat('MM-dd HH:mm').format(app.endTime)}',
-                      style: theme.textTheme.bodySmall,
-                    ),
-                    Text(
-                      app.reason,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.outline,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Chip(
-                label: Text(
-                  app.statusLabel,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: _statusColor(app.status),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(app.leaveTypeLabel, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                      const SizedBox(height: 4),
+                      Text('${DateFormat('MM-dd HH:mm').format(app.startTime)} ~ ${DateFormat('MM-dd HH:mm').format(app.endTime)}', style: theme.textTheme.bodySmall),
+                      if (app.reason.isNotEmpty)
+                        Text(app.reason, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: theme.colorScheme.outline)),
+                    ],
                   ),
                 ),
-                backgroundColor: _statusColor(app.status).withValues(alpha: 0.1),
-                side: BorderSide.none,
-                padding: EdgeInsets.zero,
-                visualDensity: VisualDensity.compact,
-              ),
-            ],
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(color: sc.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(20)),
+                  child: Text(app.statusLabel, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: sc)),
+                ),
+              ],
+            ),
           ),
         ),
       ),

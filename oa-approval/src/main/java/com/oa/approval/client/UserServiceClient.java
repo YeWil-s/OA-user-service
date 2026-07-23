@@ -91,7 +91,8 @@ public class UserServiceClient {
         if (isUsableApprover(1L, applicantUserId)) {
             return 1L;
         }
-        throw new BusinessException(ResultCode.BAD_REQUEST, "未找到可用审批人，请先配置部门主管");
+        // 整个部门链都没有可用审批人时，回退到超级管理员
+        return 1L;
     }
 
     private boolean isUsableApprover(Long leaderId, Long applicantUserId) {

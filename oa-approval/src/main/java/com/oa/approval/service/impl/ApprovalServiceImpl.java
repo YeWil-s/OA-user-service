@@ -145,7 +145,10 @@ public class ApprovalServiceImpl implements IApprovalService {
     public void approve(Long id, ApprovalActionDTO dto) {
         CurrentUser currentUser = UserContextHolder.getCurrentUser();
         AppApplication application = getApplication(id);
-        if (!Objects.equals(application.getCurrentApproverId(), currentUser.getUserId())) {
+        // admin/HR 可以审批任意待审批申请
+        if (!Objects.equals(application.getCurrentApproverId(), currentUser.getUserId())
+                && !currentUser.hasRole("ROLE_ADMIN")
+                && !currentUser.hasRole("ROLE_HR")) {
             throw new BusinessException(ResultCode.FORBIDDEN, "你不是当前审批人");
         }
         if (!Objects.equals(application.getStatus(), 1)) {
@@ -194,6 +197,38 @@ public class ApprovalServiceImpl implements IApprovalService {
                 .map(application -> toApplicationVO(application, recordMap.get(application.getId())))
                 .toList());
         return result;
+    }
+
+    @Override
+    public IPage<ApplicationVO> allApplications(ApplicationQueryDTO dto) {
+        CurrentUser currentUser = UserContextHolder.getCurrentUser();
+        requireAdminOrHr(currentUser);
+        ApplicationQueryDTO safeDto = safeQuery(dto);
+        LambdaQueryWrapper<AppApplication> wrapper = new LambdaQueryWrapper<AppApplication>()
+                .orderByDesc(AppApplication::getCreateTime);
+        if (safeDto.getStatus() != null) {
+            wrapper.eq(AppApplication::getStatus, safeDto.getStatus());
+        }
+        Page<AppApplication> page = appApplicationMapper.selectPage(new Page<>(safeDto.getPageNum(), safeDto.getPageSize()), wrapper);
+        return buildListPage(page);
+    }
+
+    @Override
+    public IPage<ApplicationVO> allPending(ApplicationQueryDTO dto) {
+        CurrentUser currentUser = UserContextHolder.getCurrentUser();
+        requireAdminOrHr(currentUser);
+        ApplicationQueryDTO safeDto = safeQuery(dto);
+        Page<AppApplication> page = appApplicationMapper.selectPage(new Page<>(safeDto.getPageNum(), safeDto.getPageSize()),
+                new LambdaQueryWrapper<AppApplication>()
+                        .eq(AppApplication::getStatus, 1)
+                        .orderByDesc(AppApplication::getCreateTime));
+        return buildListPage(page);
+    }
+
+    private void requireAdminOrHr(CurrentUser currentUser) {
+        if (!currentUser.hasRole("ROLE_ADMIN") && !currentUser.hasRole("ROLE_HR")) {
+            throw new BusinessException(ResultCode.FORBIDDEN, "无权限访问");
+        }
     }
 
     private IPage<ApplicationVO> buildListPage(Page<AppApplication> page) {

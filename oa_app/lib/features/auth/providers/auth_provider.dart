@@ -34,8 +34,8 @@ class AuthNotifier extends StateNotifier<AsyncValue<UserInfo?>> {
         username: username,
         realName: realName,
         avatarUrl: avatarUrl,
-        roles: const [],
-        permissions: const [],
+        roles: _localSource.readRoles(),
+        permissions: _localSource.readPermissions(),
       ));
     } else {
       state = const AsyncValue.data(null);
@@ -54,6 +54,8 @@ class AuthNotifier extends StateNotifier<AsyncValue<UserInfo?>> {
         username: response.username,
         realName: response.realName,
         avatarUrl: response.avatarUrl,
+        roles: response.roles,
+        permissions: response.permissions,
       );
       state = AsyncValue.data(UserInfo.fromLoginResponse(response));
     } catch (e, st) {

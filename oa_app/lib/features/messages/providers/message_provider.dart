@@ -24,8 +24,8 @@ class MessageNotifier extends StateNotifier<AsyncValue<List<AppMessage>>> {
   Future<void> fetch() async {
     state = const AsyncValue.loading();
     try {
-      final messages = await _repo.getMessages();
-      state = AsyncValue.data(messages);
+      final pageData = await _repo.getMessages();
+      state = AsyncValue.data(pageData.records);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
     }

@@ -1,0 +1,289 @@
+services:
+  # ============================================================
+  # Infrastructure
+  # ============================================================
+
+  mysql:
+    image: mysql:8.0
+    container_name: oa-mysql
+    restart: unless-stopped
+    command: mysqld --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    ports:
+      - "3308:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./sql/oa_init.sql:/docker-entrypoint-initdb.d/01-oa-init.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    networks:
+      - oa-network
+
+  redis:
+    image: redis/redis-stack-server:7.2.0-v10
+    container_name: oa-redis
+    restart: unless-stopped
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - oa-network
+
+  nacos:
+    image: nacos/nacos-server:v2.3.2
+    container_name: oa-nacos
+    restart: unless-stopped
+    environment:
+      MODE: standalone
+      PREFER_HOST_MODE: hostname
+    ports:
+      - "8849:8848"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:8848/nacos/v1/console/health/readiness || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 90s
+    networks:
+      - oa-network
+
+  # ============================================================
+  # Microservices
+  # ============================================================
+
+  oa-user-service:
+    build:
+      context: .
+      args:
+        MODULE_NAME: oa-user
+        SERVICE_PORT: "8081"
+    container_name: oa-user-service
+    restart: unless-stopped
+    environment:
+      MYSQL_HOST: ${MYSQL_HOST}
+      MYSQL_PORT: ${MYSQL_PORT}
+      MYSQL_USERNAME: ${MYSQL_USERNAME}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      REDIS_DATABASE: ${REDIS_DATABASE}
+      NACOS_SERVER_ADDR: ${NACOS_SERVER_ADDR}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRATION: ${JWT_EXPIRATION}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nacos:
+        condition: service_healthy
+    networks:
+      - oa-network
+
+  oa-attendance-service:
+    build:
+      context: .
+      args:
+        MODULE_NAME: oa-attendance
+        SERVICE_PORT: "8082"
+    container_name: oa-attendance-service
+    restart: unless-stopped
+    environment:
+      MYSQL_HOST: ${MYSQL_HOST}
+      MYSQL_PORT: ${MYSQL_PORT}
+      MYSQL_USERNAME: ${MYSQL_USERNAME}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      REDIS_DATABASE: ${REDIS_DATABASE}
+      NACOS_SERVER_ADDR: ${NACOS_SERVER_ADDR}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nacos:
+        condition: service_healthy
+    networks:
+      - oa-network
+
+  oa-approval-service:
+    build:
+      context: .
+      args:
+        MODULE_NAME: oa-approval
+        SERVICE_PORT: "8083"
+    container_name: oa-approval-service
+    restart: unless-stopped
+    environment:
+      MYSQL_HOST: ${MYSQL_HOST}
+      MYSQL_PORT: ${MYSQL_PORT}
+      MYSQL_USERNAME: ${MYSQL_USERNAME}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      REDIS_DATABASE: ${REDIS_DATABASE}
+      NACOS_SERVER_ADDR: ${NACOS_SERVER_ADDR}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nacos:
+        condition: service_healthy
+    networks:
+      - oa-network
+
+  oa-notice-service:
+    build:
+      context: .
+      args:
+        MODULE_NAME: oa-notice
+        SERVICE_PORT: "8084"
+    container_name: oa-notice-service
+    restart: unless-stopped
+    environment:
+      MYSQL_HOST: ${MYSQL_HOST}
+      MYSQL_PORT: ${MYSQL_PORT}
+      MYSQL_USERNAME: ${MYSQL_USERNAME}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      REDIS_DATABASE: ${REDIS_DATABASE}
+      NACOS_SERVER_ADDR: ${NACOS_SERVER_ADDR}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nacos:
+        condition: service_healthy
+    networks:
+      - oa-network
+
+  oa-asset-service:
+    build:
+      context: .
+      args:
+        MODULE_NAME: oa-asset
+        SERVICE_PORT: "8085"
+    container_name: oa-asset-service
+    restart: unless-stopped
+    environment:
+      MYSQL_HOST: ${MYSQL_HOST}
+      MYSQL_PORT: ${MYSQL_PORT}
+      MYSQL_USERNAME: ${MYSQL_USERNAME}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      NACOS_SERVER_ADDR: ${NACOS_SERVER_ADDR}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      nacos:
+        condition: service_healthy
+    networks:
+      - oa-network
+
+  oa-data-visual-service:
+    build:
+      context: .
+      args:
+        MODULE_NAME: oa-data-visual
+        SERVICE_PORT: "8086"
+    container_name: oa-data-visual-service
+    restart: unless-stopped
+    environment:
+      MYSQL_HOST: ${MYSQL_HOST}
+      MYSQL_PORT: ${MYSQL_PORT}
+      MYSQL_USERNAME: ${MYSQL_USERNAME}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      REDIS_DATABASE: ${REDIS_DATABASE}
+      NACOS_SERVER_ADDR: ${NACOS_SERVER_ADDR}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nacos:
+        condition: service_healthy
+    networks:
+      - oa-network
+
+  oa-ai-service:
+    build:
+      context: .
+      args:
+        MODULE_NAME: oa-ai
+        SERVICE_PORT: "8087"
+    container_name: oa-ai-service
+    restart: unless-stopped
+    environment:
+      MYSQL_HOST: ${MYSQL_HOST}
+      MYSQL_PORT: ${MYSQL_PORT}
+      MYSQL_USERNAME: ${MYSQL_USERNAME}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      REDIS_DATABASE: ${REDIS_DATABASE}
+      NACOS_SERVER_ADDR: ${NACOS_SERVER_ADDR}
+      DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL}
+      EMBEDDING_BASE_URL: ${EMBEDDING_BASE_URL}
+      EMBEDDING_API_KEY: ${EMBEDDING_API_KEY}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nacos:
+        condition: service_healthy
+    networks:
+      - oa-network
+
+  oa-gateway:
+    build:
+      context: .
+      args:
+        MODULE_NAME: oa-gateway
+        SERVICE_PORT: "8080"
+    container_name: oa-gateway
+    restart: unless-stopped
+    ports:
+      - "8088:8080"
+    environment:
+      NACOS_SERVER_ADDR: ${NACOS_SERVER_ADDR}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRATION: ${JWT_EXPIRATION}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      nacos:
+        condition: service_healthy
+    networks:
+      - oa-network
+
+# ============================================================
+# Volumes & Network
+# ============================================================
+
+volumes:
+  mysql_data:
+  redis_data:
+
+networks:
+  oa-network:
+    driver: bridge

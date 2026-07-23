@@ -7,4 +7,6 @@ class AppConstants {
   static const String usernameKey = 'username';
   static const String realNameKey = 'real_name';
   static const String avatarUrlKey = 'avatar_url';
+  static const String rolesKey = 'roles';
+  static const String permissionsKey = 'permissions';
 }

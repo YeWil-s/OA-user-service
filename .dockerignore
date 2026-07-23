@@ -1,0 +1,12 @@
+target/
+**/.idea/
+**/.git/
+**/node_modules/
+**/oa_app/
+**/*.md
+**/.gitignore
+**/.gitattributes
+.env
+docker-compose.yml
+Dockerfile
+.dockerignore

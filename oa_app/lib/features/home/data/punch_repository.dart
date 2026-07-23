@@ -8,50 +8,63 @@ class PunchRepository {
   PunchRepository(this._dio);
 
   Future<PunchStatus> getTodayStatus() async {
-    if (ApiConstants.useStubServices) {
-      await Future.delayed(const Duration(milliseconds: 500));
-      return const PunchStatus(
-        punchInTime: null, // will be set dynamically
-        status: 'not_punched',
-      );
+    final response = await _dio.get(
+      ApiConstants.attendanceRecordsMine,
+      queryParameters: {'pageNum': 1, 'pageSize': 1},
+    );
+    final data = response.data['data'] as Map<String, dynamic>?;
+    final records = data?['records'] as List<dynamic>? ?? [];
+    if (records.isNotEmpty) {
+      return PunchStatus.fromJson(records.first as Map<String, dynamic>);
     }
-    final response = await _dio.get(ApiConstants.attendanceRecordsMine);
-    final data = response.data['data'];
-    return PunchStatus.fromJson(data is List && data.isNotEmpty
-        ? data[0] as Map<String, dynamic>
-        : <String, dynamic>{});
+    return const PunchStatus(status: 'not_punched');
   }
 
-  Future<PunchStatus> punchIn({int type = 1}) async {
-    if (ApiConstants.useStubServices) {
-      await Future.delayed(const Duration(milliseconds: 500));
-      return PunchStatus(
-        punchInTime: DateTime.now(),
-        punchType: type,
-        status: 'punched_in',
-      );
-    }
+  Future<PunchStatus> punchIn({
+    int type = 1,
+    String? location,
+    double? latitude,
+    double? longitude,
+    String? deviceInfo,
+  }) async {
     final response = await _dio.post(
       ApiConstants.punchIn,
-      data: {'punchType': type},
+      data: {
+        'punchType': type,
+        if (location != null) 'location': location,
+        if (latitude != null) 'latitude': latitude,
+        if (longitude != null) 'longitude': longitude,
+        if (deviceInfo != null) 'deviceInfo': deviceInfo,
+      },
     );
-    return PunchStatus.fromJson(response.data['data'] as Map<String, dynamic>);
+    final data = response.data['data'] as Map<String, dynamic>?;
+    if (data != null) {
+      return PunchStatus.fromPunchResponse(data);
+    }
+    return getTodayStatus();
   }
 
-  Future<PunchStatus> punchOut({int type = 1}) async {
-    if (ApiConstants.useStubServices) {
-      await Future.delayed(const Duration(milliseconds: 500));
-      return PunchStatus(
-        punchInTime: DateTime.now().subtract(const Duration(hours: 8)),
-        punchOutTime: DateTime.now(),
-        punchType: type,
-        status: 'completed',
-      );
-    }
+  Future<PunchStatus> punchOut({
+    int type = 1,
+    String? location,
+    double? latitude,
+    double? longitude,
+    String? deviceInfo,
+  }) async {
     final response = await _dio.post(
       ApiConstants.punchOut,
-      data: {'punchType': type},
+      data: {
+        'punchType': type,
+        if (location != null) 'location': location,
+        if (latitude != null) 'latitude': latitude,
+        if (longitude != null) 'longitude': longitude,
+        if (deviceInfo != null) 'deviceInfo': deviceInfo,
+      },
     );
-    return PunchStatus.fromJson(response.data['data'] as Map<String, dynamic>);
+    final data = response.data['data'] as Map<String, dynamic>?;
+    if (data != null) {
+      return PunchStatus.fromPunchResponse(data);
+    }
+    return getTodayStatus();
   }
 }

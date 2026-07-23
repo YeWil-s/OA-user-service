@@ -19,6 +19,8 @@ class AuthLocalSource {
     required String username,
     required String realName,
     String? avatarUrl,
+    List<String> roles = const [],
+    List<String> permissions = const [],
   }) async {
     await _prefs.setInt(AppConstants.userIdKey, userId);
     await _prefs.setString(AppConstants.usernameKey, username);
@@ -26,7 +28,16 @@ class AuthLocalSource {
     if (avatarUrl != null) {
       await _prefs.setString(AppConstants.avatarUrlKey, avatarUrl);
     }
+    if (roles.isNotEmpty) {
+      await _prefs.setStringList(AppConstants.rolesKey, roles);
+    }
+    if (permissions.isNotEmpty) {
+      await _prefs.setStringList(AppConstants.permissionsKey, permissions);
+    }
   }
+
+  List<String> readRoles() => _prefs.getStringList(AppConstants.rolesKey) ?? [];
+  List<String> readPermissions() => _prefs.getStringList(AppConstants.permissionsKey) ?? [];
 
   Future<void> clearAll() async {
     await _prefs.remove(AppConstants.tokenKey);
@@ -34,6 +45,8 @@ class AuthLocalSource {
     await _prefs.remove(AppConstants.usernameKey);
     await _prefs.remove(AppConstants.realNameKey);
     await _prefs.remove(AppConstants.avatarUrlKey);
+    await _prefs.remove(AppConstants.rolesKey);
+    await _prefs.remove(AppConstants.permissionsKey);
   }
 
   int? readUserId() => _prefs.getInt(AppConstants.userIdKey);

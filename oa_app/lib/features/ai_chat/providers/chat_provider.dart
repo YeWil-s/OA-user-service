@@ -9,6 +9,7 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/network/interceptors/auth_interceptor.dart';
 import '../../../core/network/interceptors/error_interceptor.dart';
 import '../../../core/network/auth_callback.dart';
+import '../../auth/providers/auth_providers.dart';
 import '../data/chat_repository.dart';
 import '../models/chat_message.dart';
 import '../models/conversation.dart';
@@ -21,7 +22,8 @@ final aiDioProvider = Provider<Dio>((ref) {
     sendTimeout: ApiConstants.sendTimeout,
     headers: {'Content-Type': 'application/json'},
   ));
-  dio.interceptors.add(AuthInterceptor());
+  final prefs = ref.watch(sharedPreferencesProvider);
+  dio.interceptors.add(AuthInterceptor(prefs));
   dio.interceptors.add(ErrorInterceptor(onUnauthorized: triggerLogout));
   return dio;
 });

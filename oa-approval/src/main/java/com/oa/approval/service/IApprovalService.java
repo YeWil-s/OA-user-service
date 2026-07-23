@@ -22,4 +22,8 @@ public interface IApprovalService {
     void approve(Long id, ApprovalActionDTO dto);
 
     IPage<ApplicationVO> processedApplications(ApplicationQueryDTO dto);
+
+    IPage<ApplicationVO> allApplications(ApplicationQueryDTO dto);
+
+    IPage<ApplicationVO> allPending(ApplicationQueryDTO dto);
 }

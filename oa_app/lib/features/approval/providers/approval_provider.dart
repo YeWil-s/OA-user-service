@@ -14,19 +14,21 @@ class MyApplicationsNotifier extends StateNotifier<AsyncValue<List<Application>>
 
   MyApplicationsNotifier(this._repo) : super(const AsyncValue.loading());
 
-  Future<void> fetch({String? status}) async {
+  Future<void> fetch({int? status, bool viewAll = false}) async {
     state = const AsyncValue.loading();
     try {
-      final list = await _repo.getMyApplications(status: status);
-      state = AsyncValue.data(list);
+      final pageData = viewAll
+          ? await _repo.getAllApplications(status: status)
+          : await _repo.getMyApplications(status: status);
+      state = AsyncValue.data(pageData.records);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
     }
   }
 
-  Future<void> cancel(int id) async {
+  Future<void> cancel(int id, {bool viewAll = false}) async {
     await _repo.cancel(id);
-    await fetch();
+    await fetch(viewAll: viewAll);
   }
 }
 
@@ -42,19 +44,21 @@ class PendingNotifier extends StateNotifier<AsyncValue<List<Application>>> {
 
   PendingNotifier(this._repo) : super(const AsyncValue.loading());
 
-  Future<void> fetch() async {
+  Future<void> fetch({bool viewAll = false}) async {
     state = const AsyncValue.loading();
     try {
-      final list = await _repo.getPending();
-      state = AsyncValue.data(list);
+      final pageData = viewAll
+          ? await _repo.getAllPending()
+          : await _repo.getPending();
+      state = AsyncValue.data(pageData.records);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
     }
   }
 
-  Future<void> approve(int id, {required int action, required String comment}) async {
-    await _repo.approve(id, action: action, comment: comment);
-    await fetch();
+  Future<void> approve(int id, {required bool approved, required String comment, bool viewAll = false}) async {
+    await _repo.approve(id, approved: approved, comment: comment);
+    await fetch(viewAll: viewAll);
   }
 }
 

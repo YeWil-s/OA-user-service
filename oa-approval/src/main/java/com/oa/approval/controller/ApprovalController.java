@@ -76,4 +76,16 @@ public class ApprovalController {
     public Result<IPage<ApplicationVO>> processedApplications(@Valid ApplicationQueryDTO dto) {
         return Result.success(approvalService.processedApplications(dto));
     }
+
+    @Operation(summary = "All applications (admin/HR only)")
+    @GetMapping("/applications/all")
+    public Result<IPage<ApplicationVO>> allApplications(@Valid ApplicationQueryDTO dto) {
+        return Result.success(approvalService.allApplications(dto));
+    }
+
+    @Operation(summary = "All pending (admin/HR only)")
+    @GetMapping("/pending/all")
+    public Result<IPage<ApplicationVO>> allPending(@Valid ApplicationQueryDTO dto) {
+        return Result.success(approvalService.allPending(dto));
+    }
 }

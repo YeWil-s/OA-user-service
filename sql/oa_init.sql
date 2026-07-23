@@ -5,6 +5,8 @@
 -- 使用: 直接在本机MySQL中执行此文件即可
 -- ============================================================
 
+SET NAMES utf8mb4;
+
 -- ============================================================
 -- 1. 创建数据库
 -- ============================================================
@@ -168,7 +170,9 @@ CREATE TABLE att_record (
     punch_out_time DATETIME     DEFAULT NULL         COMMENT '下班打卡时间',
     punch_type     TINYINT      NOT NULL DEFAULT 1   COMMENT '打卡类型: 1=现场, 2=外勤',
     device_info    VARCHAR(100) DEFAULT NULL         COMMENT '设备信息/IP',
-    location       VARCHAR(200) DEFAULT NULL         COMMENT '打卡地点(外勤预留)',
+    location       VARCHAR(200) DEFAULT NULL         COMMENT '打卡地点名称',
+    latitude       DECIMAL(10,7) DEFAULT NULL        COMMENT '纬度',
+    longitude      DECIMAL(10,7) DEFAULT NULL        COMMENT '经度',
     create_time    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     UNIQUE KEY uk_user_date (user_id, record_date)
@@ -476,12 +480,12 @@ CREATE TABLE stat_dept_overview (
 USE user_db;
 
 -- 部门
-INSERT INTO sys_dept (id, parent_id, dept_name, dept_code, sort_order) VALUES
-(1, 0, '总公司',     'ROOT',        1),
-(2, 1, '技术部',     'TECH',        1),
-(3, 1, '人事部',     'HR',          2),
-(4, 1, '财务部',     'FINANCE',     3),
-(5, 1, '市场部',     'MARKET',      4);
+INSERT INTO sys_dept (id, parent_id, dept_name, dept_code, sort_order, leader_id) VALUES
+(1, 0, '总公司',     'ROOT',        1, 1),
+(2, 1, '技术部',     'TECH',        1, 2),
+(3, 1, '人事部',     'HR',          2, 3),
+(4, 1, '财务部',     'FINANCE',     3, 4),
+(5, 1, '市场部',     'MARKET',      4, 1);
 
 -- 岗位
 INSERT INTO sys_position (id, position_name, position_code, dept_id, sort_order) VALUES
@@ -602,3 +606,9 @@ INSERT INTO ntc_notice (id, title, content, publisher_id, notice_type, target_ty
 
 -- ---------- asset_db / ai_db / statistics_db ----------
 -- 无预设数据，运行时动态生成
+
+-- ==================== 增量迁移 ====================
+-- 打卡流水表增加经纬度字段（用于GPS定位打卡）
+-- 如果数据库中已有att_record表但缺少latitude/longitude列，请执行以下语句：
+-- ALTER TABLE att_record ADD COLUMN latitude DECIMAL(10,7) DEFAULT NULL COMMENT '纬度' AFTER location;
+-- ALTER TABLE att_record ADD COLUMN longitude DECIMAL(10,7) DEFAULT NULL COMMENT '经度' AFTER latitude;

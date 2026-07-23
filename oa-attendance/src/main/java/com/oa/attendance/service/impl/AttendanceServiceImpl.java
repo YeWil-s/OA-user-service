@@ -154,6 +154,8 @@ public class AttendanceServiceImpl implements IAttendanceService {
             record.setPunchInTime(now);
             record.setDeviceInfo(safeDto.getDeviceInfo());
             record.setLocation(safeDto.getLocation());
+            record.setLatitude(safeDto.getLatitude());
+            record.setLongitude(safeDto.getLongitude());
             try {
                 attRecordMapper.insert(record);
             } catch (DuplicateKeyException ex) {
@@ -164,6 +166,8 @@ public class AttendanceServiceImpl implements IAttendanceService {
             record.setPunchType(resolvePunchType(safeDto));
             record.setDeviceInfo(safeDto.getDeviceInfo());
             record.setLocation(safeDto.getLocation());
+            record.setLatitude(safeDto.getLatitude());
+            record.setLongitude(safeDto.getLongitude());
             attRecordMapper.updateById(record);
         }
         return buildPunchVO("上班打卡成功", record, resolveShiftForUser(currentUser.getUserId()), now, false);
@@ -188,6 +192,8 @@ public class AttendanceServiceImpl implements IAttendanceService {
         record.setPunchType(resolvePunchType(safeDto));
         record.setDeviceInfo(safeDto.getDeviceInfo());
         record.setLocation(safeDto.getLocation());
+        record.setLatitude(safeDto.getLatitude());
+        record.setLongitude(safeDto.getLongitude());
         attRecordMapper.updateById(record);
         return buildPunchVO("下班打卡成功", record, resolveShiftForUser(currentUser.getUserId()), now, true);
     }

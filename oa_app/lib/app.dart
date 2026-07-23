@@ -14,23 +14,20 @@ class AppShell extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final currentRoute = GoRouterState.of(context).matchedLocation;
 
-    int currentIndex;
-    switch (currentRoute) {
-      case '/home':
-        currentIndex = 0;
+    // 审批 Tab 所有人可见（我的申请+提交申请），待审批入口在页面内部做权限控制
+    final navItems = <NavItem>[
+      const NavItem(icon: Icons.home_outlined, selectedIcon: Icons.home, label: '首页', path: '/home'),
+      const NavItem(icon: Icons.notifications_outlined, selectedIcon: Icons.notifications, label: '消息', path: '/messages'),
+      const NavItem(icon: Icons.assignment_outlined, selectedIcon: Icons.assignment, label: '审批', path: '/applications', altPath: '/pending'),
+      const NavItem(icon: Icons.person_outlined, selectedIcon: Icons.person, label: '我的', path: '/profile'),
+    ];
+
+    int currentIndex = -1;
+    for (int i = 0; i < navItems.length; i++) {
+      if (navItems[i].matches(currentRoute)) {
+        currentIndex = i;
         break;
-      case '/messages':
-        currentIndex = 1;
-        break;
-      case '/applications':
-      case '/pending':
-        currentIndex = 2;
-        break;
-      case '/profile':
-        currentIndex = 3;
-        break;
-      default:
-        currentIndex = -1;
+      }
     }
 
     return Scaffold(
@@ -39,47 +36,27 @@ class AppShell extends ConsumerWidget {
           ? NavigationBar(
               selectedIndex: currentIndex,
               onDestinationSelected: (index) {
-                switch (index) {
-                  case 0:
-                    context.go('/home');
-                    break;
-                  case 1:
-                    context.go('/messages');
-                    break;
-                  case 2:
-                    context.go('/applications');
-                    break;
-                  case 3:
-                    context.go('/profile');
-                    break;
-                }
+                context.go(navItems[index].path);
               },
-              destinations: const [
-                NavigationDestination(
-                  icon: Icon(Icons.home_outlined),
-                  selectedIcon: Icon(Icons.home),
-                  label: '首页',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.notifications_outlined),
-                  selectedIcon: Icon(Icons.notifications),
-                  label: '消息',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.assignment_outlined),
-                  selectedIcon: Icon(Icons.assignment),
-                  label: '审批',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.person_outlined),
-                  selectedIcon: Icon(Icons.person),
-                  label: '我的',
-                ),
-              ],
+              destinations: navItems
+                  .map((n) => NavigationDestination(icon: Icon(n.icon), selectedIcon: Icon(n.selectedIcon), label: n.label))
+                  .toList(),
             )
           : null,
     );
   }
+}
+
+class NavItem {
+  final IconData icon;
+  final IconData selectedIcon;
+  final String label;
+  final String path;
+  final String? altPath;
+
+  const NavItem({required this.icon, required this.selectedIcon, required this.label, required this.path, this.altPath});
+
+  bool matches(String route) => route == path || route == altPath;
 }
 
 class App extends ConsumerStatefulWidget {

@@ -37,7 +37,7 @@ class AppMessage {
       content: json['content'] as String? ?? '',
       msgType: json['msgType'] as int? ?? 3,
       relatedId: json['relatedId'] as int?,
-      isRead: json['isRead'] as bool? ?? false,
+      isRead: (json['read'] ?? json['isRead']) as bool? ?? false,
       createTime: json['createTime'] != null
           ? DateTime.parse(json['createTime'] as String)
           : DateTime.now(),

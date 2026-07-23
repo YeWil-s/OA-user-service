@@ -23,7 +23,8 @@ final dioProvider = Provider<Dio>((ref) {
     headers: {'Content-Type': 'application/json'},
   ));
 
-  dio.interceptors.add(AuthInterceptor());
+  final prefs = ref.watch(sharedPreferencesProvider);
+  dio.interceptors.add(AuthInterceptor(prefs));
   dio.interceptors.add(ErrorInterceptor(
     onUnauthorized: triggerLogout,
   ));

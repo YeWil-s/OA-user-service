@@ -21,6 +21,8 @@ public class AttRecord {
     private Integer punchType;
     private String deviceInfo;
     private String location;
+    private java.math.BigDecimal latitude;
+    private java.math.BigDecimal longitude;
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
 
@@ -40,6 +42,10 @@ public class AttRecord {
     public void setDeviceInfo(String deviceInfo) { this.deviceInfo = deviceInfo; }
     public String getLocation() { return location; }
     public void setLocation(String location) { this.location = location; }
+    public java.math.BigDecimal getLatitude() { return latitude; }
+    public void setLatitude(java.math.BigDecimal latitude) { this.latitude = latitude; }
+    public java.math.BigDecimal getLongitude() { return longitude; }
+    public void setLongitude(java.math.BigDecimal longitude) { this.longitude = longitude; }
     public LocalDateTime getCreateTime() { return createTime; }
     public void setCreateTime(LocalDateTime createTime) { this.createTime = createTime; }
 }
