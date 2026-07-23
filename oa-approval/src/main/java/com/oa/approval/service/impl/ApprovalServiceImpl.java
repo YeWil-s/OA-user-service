@@ -100,6 +100,7 @@ public class ApprovalServiceImpl implements IApprovalService {
         }
         if (Objects.equals(dto.getAppType(), 5)) {
             application.setAssetId(dto.getAssetId());
+            application.setRecipientId(dto.getRecipientId() != null ? dto.getRecipientId() : currentUser.getUserId());
             application.setExpectReturnDate(dto.getExpectReturnDate());
         }
         application.setReason(dto.getReason());
@@ -235,8 +236,13 @@ public class ApprovalServiceImpl implements IApprovalService {
                         application.getTargetDeptId(),
                         application.getTargetPositionId());
             } else if (Objects.equals(application.getAppType(), 5)) {
+                if (dto.getRecipientId() != null) {
+                    application.setRecipientId(dto.getRecipientId());
+                    appApplicationMapper.updateById(application);
+                }
+                Long recipientId = application.getRecipientId() != null ? application.getRecipientId() : application.getUserId();
                 assetServiceClient.borrow(application.getAssetId(),
-                        application.getUserId(),
+                        recipientId,
                         application.getExpectReturnDate());
             }
         }
@@ -459,6 +465,8 @@ public class ApprovalServiceImpl implements IApprovalService {
         vo.setTargetPositionId(application.getTargetPositionId());
         vo.setTargetPositionName(userServiceClient.getPositionName(application.getTargetPositionId()));
         vo.setAssetId(application.getAssetId());
+        vo.setRecipientId(application.getRecipientId());
+        vo.setRecipientName(userServiceClient.getUserName(application.getRecipientId()));
         vo.setExpectReturnDate(application.getExpectReturnDate());
         vo.setReason(application.getReason());
         vo.setStatus(application.getStatus());

@@ -26,6 +26,7 @@ public class AppApplication {
     private Long targetDeptId;
     private Long targetPositionId;
     private Long assetId;
+    private Long recipientId;
     private LocalDate expectReturnDate;
     private String reason;
     private String attachments;
@@ -60,6 +61,8 @@ public class AppApplication {
     public void setTargetPositionId(Long targetPositionId) { this.targetPositionId = targetPositionId; }
     public Long getAssetId() { return assetId; }
     public void setAssetId(Long assetId) { this.assetId = assetId; }
+    public Long getRecipientId() { return recipientId; }
+    public void setRecipientId(Long recipientId) { this.recipientId = recipientId; }
     public LocalDate getExpectReturnDate() { return expectReturnDate; }
     public void setExpectReturnDate(LocalDate expectReturnDate) { this.expectReturnDate = expectReturnDate; }
     public String getReason() { return reason; }

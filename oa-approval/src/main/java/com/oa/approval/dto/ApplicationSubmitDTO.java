@@ -29,6 +29,8 @@ public class ApplicationSubmitDTO {
 
     private Long assetId;
 
+    private Long recipientId;
+
     private LocalDate expectReturnDate;
 
     @NotBlank(message = "申请原因不能为空")
@@ -50,6 +52,8 @@ public class ApplicationSubmitDTO {
     public void setTargetPositionId(Long targetPositionId) { this.targetPositionId = targetPositionId; }
     public Long getAssetId() { return assetId; }
     public void setAssetId(Long assetId) { this.assetId = assetId; }
+    public Long getRecipientId() { return recipientId; }
+    public void setRecipientId(Long recipientId) { this.recipientId = recipientId; }
     public LocalDate getExpectReturnDate() { return expectReturnDate; }
     public void setExpectReturnDate(LocalDate expectReturnDate) { this.expectReturnDate = expectReturnDate; }
     public String getReason() { return reason; }

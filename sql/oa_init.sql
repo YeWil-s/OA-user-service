@@ -246,6 +246,7 @@ CREATE TABLE app_application (
     target_dept_id      BIGINT       DEFAULT NULL         COMMENT '目标部门ID(app_type=4时)',
     target_position_id  BIGINT       DEFAULT NULL         COMMENT '目标岗位ID(app_type=4时)',
     asset_id            BIGINT       DEFAULT NULL         COMMENT '资产ID(app_type=5时)',
+    recipient_id        BIGINT       DEFAULT NULL         COMMENT '领取人ID(app_type=5时，默认同申请人)',
     expect_return_date  DATE         DEFAULT NULL         COMMENT '预计归还日期(app_type=5时)',
     reason              VARCHAR(500) DEFAULT NULL         COMMENT '申请原因',
     attachments         VARCHAR(500) DEFAULT NULL         COMMENT '附件URL,逗号分隔',
@@ -436,6 +437,59 @@ CREATE TABLE ai_analysis_report (
     KEY idx_period (analysis_period)
 ) ENGINE=InnoDB COMMENT='AI分析报告表';
 
+-- 知识文档表
+DROP TABLE IF EXISTS ai_knowledge_doc;
+CREATE TABLE ai_knowledge_doc (
+    id               BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键',
+    title            VARCHAR(200) NOT NULL             COMMENT '文档标题',
+    content          LONGTEXT     NOT NULL             COMMENT '文档正文(Markdown格式)',
+    summary          VARCHAR(500) DEFAULT NULL         COMMENT '文档摘要(用于列表卡片展示)',
+    category         TINYINT      NOT NULL             COMMENT '分类: 1=公司制度, 2=操作流程, 3=HR政策, 4=财务制度, 5=IT规范, 6=其他',
+    dept_id          BIGINT       DEFAULT NULL         COMMENT '所属部门ID',
+    access_roles     VARCHAR(200) NOT NULL DEFAULT '["ROLE_EMPLOYEE","ROLE_LEADER","ROLE_HR","ROLE_ADMIN"]' COMMENT '可访问角色(JSON数组)',
+    access_positions VARCHAR(500) DEFAULT NULL         COMMENT '可访问岗位(JSON数组)',
+    access_depts     VARCHAR(500) DEFAULT NULL         COMMENT '可访问部门(JSON数组)',
+    access_mode      TINYINT      DEFAULT 0            COMMENT '访问模式: 0=全部可见, 1=按角色, 2=按部门岗位',
+    version          INT          DEFAULT 1            COMMENT '版本号',
+    vector_status    TINYINT      DEFAULT 0            COMMENT '向量状态: 0=未同步, 1=已同步, 2=同步失败',
+    vector_error     VARCHAR(500) DEFAULT NULL         COMMENT '向量同步错误信息',
+    status           TINYINT      NOT NULL DEFAULT 1   COMMENT '状态: 0=停用, 1=启用',
+    create_by        BIGINT       DEFAULT NULL         COMMENT '创建人ID',
+    create_time      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    update_time      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    is_deleted       TINYINT      NOT NULL DEFAULT 0   COMMENT '逻辑删除: 0=未删除, 1=已删除',
+    PRIMARY KEY (id),
+    KEY idx_category (category),
+    KEY idx_status (status),
+    KEY idx_vector_status (vector_status)
+) ENGINE=InnoDB COMMENT='知识文档表';
+
+-- 知识标签表
+DROP TABLE IF EXISTS ai_knowledge_tag;
+CREATE TABLE ai_knowledge_tag (
+    id          BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键',
+    tag_name    VARCHAR(50)  NOT NULL             COMMENT '标签名称',
+    tag_code    VARCHAR(30)  NOT NULL             COMMENT '标签编码(唯一标识)',
+    tag_desc    VARCHAR(200) DEFAULT NULL         COMMENT '标签描述',
+    create_time DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    update_time DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    is_deleted  TINYINT      NOT NULL DEFAULT 0   COMMENT '逻辑删除: 0=未删除, 1=已删除',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_tag_code (tag_code)
+) ENGINE=InnoDB COMMENT='知识标签表';
+
+-- 知识文档-标签关联表
+DROP TABLE IF EXISTS ai_knowledge_doc_tag;
+CREATE TABLE ai_knowledge_doc_tag (
+    id      BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
+    doc_id  BIGINT NOT NULL COMMENT '文档ID',
+    tag_id  BIGINT NOT NULL COMMENT '标签ID',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_doc_tag (doc_id, tag_id),
+    KEY idx_doc_id (doc_id),
+    KEY idx_tag_id (tag_id)
+) ENGINE=InnoDB COMMENT='知识文档-标签关联表';
+
 -- ============================================================
 -- 8. statistics_db: 可视化统计数据
 -- ============================================================
@@ -621,11 +675,132 @@ USE notice_db;
 INSERT INTO ntc_notice (id, title, content, publisher_id, notice_type, target_type, start_time, status) VALUES
 (1, '欢迎使用OA办公管理系统', '<p>系统已正式上线运行，请大家及时完善个人信息，并熟悉各项功能模块。</p>', 1, 1, 1, NOW(), 1);
 
--- ---------- asset_db / ai_db / statistics_db ----------
--- 无预设数据，运行时动态生成
+-- ---------- ai_db ----------
+USE ai_db;
 
--- ==================== 增量迁移 ====================
--- 打卡流水表增加经纬度字段（用于GPS定位打卡）
--- 如果数据库中已有att_record表但缺少latitude/longitude列，请执行以下语句：
--- ALTER TABLE att_record ADD COLUMN latitude DECIMAL(10,7) DEFAULT NULL COMMENT '纬度' AFTER location;
--- ALTER TABLE att_record ADD COLUMN longitude DECIMAL(10,7) DEFAULT NULL COMMENT '经度' AFTER latitude;
+-- 预设标签
+INSERT INTO ai_knowledge_tag (id, tag_name, tag_code, tag_desc) VALUES
+(1, '考勤',   'ATTENDANCE',  '考勤打卡、请假、加班相关制度'),
+(2, '审批',   'APPROVAL',    '审批流程、表单填写规范'),
+(3, '人事',   'HR',          '招聘、入职、离职、转正流程'),
+(4, '财务',   'FINANCE',     '报销、借款、费用标准'),
+(5, 'IT',     'IT',          '系统使用、账号申请、故障报修'),
+(6, '行政',   'ADMIN',       '会议室、办公用品、接待规范'),
+(7, '安全',   'SECURITY',    '信息安全、保密制度、操作安全');
+
+-- 预设知识文档示例
+INSERT INTO ai_knowledge_doc (id, title, content, summary, category, access_roles, status, create_by) VALUES
+(1, '请假制度与流程',
+'# 请假制度与流程
+
+## 请假类型
+- 年假：员工入职满一年后享有5天年假
+- 事假：需提前1天申请，每月不超过3天
+- 病假：需提供医院证明，紧急情况可事后补交
+- 婚假：3天，需提供结婚证复印件
+- 产假：98天，需提前1个月申请
+
+## 申请流程
+1. 登录OA系统，进入"审批管理" → "提交申请"
+2. 选择请假类型，填写开始/结束时间
+3. 填写请假原因
+4. 提交后由直属主管审批
+5. 超过3天的请假需HR二次审批
+
+## 注意事项
+- 紧急请假需电话通知主管，事后在系统补单
+- 年假可分段使用，每次最少半天',
+'公司请假类型说明及申请流程', 1, '["ROLE_EMPLOYEE","ROLE_LEADER","ROLE_HR","ROLE_ADMIN"]', 1, 1),
+
+(2, '加班管理制度',
+'# 加班管理制度
+
+## 加班申请
+1. 加班需提前在OA系统提交加班申请
+2. 填写加班起止时间、加班事由
+3. 由部门主管审批
+
+## 加班费标准
+- 工作日加班：按1.5倍工资计算
+- 休息日加班：按2倍工资计算
+- 法定节假日加班：按3倍工资计算
+
+## 调休制度
+- 工作日加班可累积调休时长
+- 每月调休不超过2天
+- 调休需提前1天申请',
+'加班申请流程及费用标准说明', 1, '["ROLE_EMPLOYEE","ROLE_LEADER","ROLE_HR","ROLE_ADMIN"]', 1, 1),
+
+(3, 'OA系统操作指南',
+'# OA系统操作指南
+
+## 常用功能入口
+- 考勤打卡：首页"考勤管理" → "打卡页面"
+- 请假申请："审批管理" → "提交申请" → 选择请假
+- 查看公告："公告通知" → "公告列表"
+- 个人设置：右上角头像 → "个人中心"
+
+## 考勤打卡
+1. 工作时间 9:00-18:00
+2. 弹性打卡窗口 8:30-9:30
+3. 每日需打上班卡和下班卡
+4. 忘记打卡需联系HR补卡
+
+## 密码修改
+1. 右上角头像 → "个人中心"
+2. 选择"修改密码"
+3. 输入旧密码和新密码
+4. 密码长度不少于8位，需包含字母和数字',
+'OA系统各功能模块使用说明', 2, '["ROLE_EMPLOYEE","ROLE_LEADER","ROLE_HR","ROLE_ADMIN"]', 1, 1),
+
+(4, '财务报销制度（主管级可见）',
+'# 财务报销制度
+
+## 报销范围
+- 差旅费：交通、住宿、餐饮
+- 办公用品：文具、耗材
+- 业务招待费：需提前申请
+
+## 报销标准
+- 差旅住宿：一线城市不超过500元/晚，其他城市不超过350元/晚
+- 餐饮补贴：出差期间每天80元
+- 交通：市内交通实报实销，跨市交通二等座/经济舱标准
+
+## 报销流程
+1. 在OA系统中填写报销单
+2. 上传发票照片/电子发票
+3. 提交部门主管审批
+4. 超过2000元的报销需财务经理加签
+5. 每月25日统一处理报销打款',
+'报销范围、标准及申请流程', 4, '["ROLE_LEADER","ROLE_HR","ROLE_ADMIN"]', 1, 1),
+
+(5, '信息安全与保密制度',
+'# 信息安全与保密制度
+
+## 数据分类
+- 公开信息：可对外发布的公司信息
+- 内部信息：仅限公司内部使用
+- 机密信息：仅限相关人员访问
+
+## 操作规范
+- 离开工位时锁屏
+- 不将公司设备带离办公场所（除便携设备）
+- 不使用个人存储设备接入公司电脑
+- 密码定期更换（90天）
+
+## 违规处理
+- 首次违规：口头警告
+- 二次违规：书面警告
+- 严重违规：解除劳动合同',
+'公司数据安全分类及员工操作规范', 6, '["ROLE_EMPLOYEE","ROLE_LEADER","ROLE_HR","ROLE_ADMIN"]', 1, 1);
+
+-- 文档-标签关联
+INSERT INTO ai_knowledge_doc_tag (doc_id, tag_id) VALUES
+(1, 1), (1, 2),   -- 请假制度: 考勤 + 审批
+(2, 1), (2, 2),   -- 加班管理: 考勤 + 审批
+(3, 5),            -- OA操作: IT
+(4, 4), (4, 2),   -- 财务报销: 财务 + 审批
+(5, 7);            -- 信息安全: 安全
+
+-- ---------- asset_db / statistics_db ----------
+-- 无预设数据，运行时动态生成

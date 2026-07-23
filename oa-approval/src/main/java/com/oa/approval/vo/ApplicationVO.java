@@ -26,6 +26,8 @@ public class ApplicationVO {
     private Long assetId;
     private String assetName;
     private String assetCode;
+    private Long recipientId;
+    private String recipientName;
     private LocalDate expectReturnDate;
     private String reason;
     private Integer status;
@@ -77,6 +79,10 @@ public class ApplicationVO {
     public void setAssetName(String assetName) { this.assetName = assetName; }
     public String getAssetCode() { return assetCode; }
     public void setAssetCode(String assetCode) { this.assetCode = assetCode; }
+    public Long getRecipientId() { return recipientId; }
+    public void setRecipientId(Long recipientId) { this.recipientId = recipientId; }
+    public String getRecipientName() { return recipientName; }
+    public void setRecipientName(String recipientName) { this.recipientName = recipientName; }
     public LocalDate getExpectReturnDate() { return expectReturnDate; }
     public void setExpectReturnDate(LocalDate expectReturnDate) { this.expectReturnDate = expectReturnDate; }
     public String getReason() { return reason; }
