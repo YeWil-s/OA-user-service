@@ -2,7 +2,6 @@ package com.oa.ai.config;
 
 import com.oa.ai.interceptor.AuthInterceptor;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
@@ -22,12 +21,4 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 .excludePathPatterns("/swagger-ui/**", "/v3/api-docs/**", "/doc.html");
     }
 
-    @Override
-    public void addCorsMappings(CorsRegistry registry) {
-        registry.addMapping("/**")
-                .allowedOriginPatterns("*")
-                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
-                .allowedHeaders("*")
-                .allowCredentials(true);
-    }
 }
