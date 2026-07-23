@@ -1,6 +1,7 @@
 package com.oa.approval.vo;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 public class ApplicationVO {
@@ -18,6 +19,14 @@ public class ApplicationVO {
     private LocalDateTime startTime;
     private LocalDateTime endTime;
     private BigDecimal duration;
+    private Long targetDeptId;
+    private String targetDeptName;
+    private Long targetPositionId;
+    private String targetPositionName;
+    private Long assetId;
+    private String assetName;
+    private String assetCode;
+    private LocalDate expectReturnDate;
     private String reason;
     private Integer status;
     private String statusText;
@@ -54,6 +63,22 @@ public class ApplicationVO {
     public void setEndTime(LocalDateTime endTime) { this.endTime = endTime; }
     public BigDecimal getDuration() { return duration; }
     public void setDuration(BigDecimal duration) { this.duration = duration; }
+    public Long getTargetDeptId() { return targetDeptId; }
+    public void setTargetDeptId(Long targetDeptId) { this.targetDeptId = targetDeptId; }
+    public String getTargetDeptName() { return targetDeptName; }
+    public void setTargetDeptName(String targetDeptName) { this.targetDeptName = targetDeptName; }
+    public Long getTargetPositionId() { return targetPositionId; }
+    public void setTargetPositionId(Long targetPositionId) { this.targetPositionId = targetPositionId; }
+    public String getTargetPositionName() { return targetPositionName; }
+    public void setTargetPositionName(String targetPositionName) { this.targetPositionName = targetPositionName; }
+    public Long getAssetId() { return assetId; }
+    public void setAssetId(Long assetId) { this.assetId = assetId; }
+    public String getAssetName() { return assetName; }
+    public void setAssetName(String assetName) { this.assetName = assetName; }
+    public String getAssetCode() { return assetCode; }
+    public void setAssetCode(String assetCode) { this.assetCode = assetCode; }
+    public LocalDate getExpectReturnDate() { return expectReturnDate; }
+    public void setExpectReturnDate(LocalDate expectReturnDate) { this.expectReturnDate = expectReturnDate; }
     public String getReason() { return reason; }
     public void setReason(String reason) { this.reason = reason; }
     public Integer getStatus() { return status; }

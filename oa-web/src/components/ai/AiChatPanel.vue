@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref } from 'vue'
-import { Bot, BrainCircuit, FileCheck2, RotateCcw, Send, Sparkles } from 'lucide-vue-next'
+import { Bot, BrainCircuit, FileCheck2, RotateCcw, Send, Sparkles, ChevronDown, ChevronRight } from 'lucide-vue-next'
 import { streamAgent, streamChat, type AiEvent, type AiEventHandlers } from '@/api/ai'
-import StreamSources from '@/components/ai/StreamSources.vue'
 
 type ChatMode = 'chat' | 'agent'
 type Message = { role: 'assistant' | 'user'; content: string }
@@ -13,22 +12,18 @@ const input = ref('')
 const loading = ref(false)
 const sessionId = ref(crypto.randomUUID())
 const sources = ref<Source[]>([])
+const sourcesOpen = ref(false)
 const confirmation = ref<Record<string, unknown> | null>(null)
 const error = ref('')
 const messages = ref<Message[]>([
-  {
-    role: 'assistant',
-    content: '你好，我是 OA 智能助手。你可以直接问我制度、流程，或者让我帮你发起智能填单。'
-  }
+  { role: 'assistant', content: '你好，我是 OA 智能助手。你可以问我制度流程，或者让我帮你发起智能填单。' }
 ])
 const typingQueue = ref('')
 const typingTimer = ref<ReturnType<typeof setInterval> | null>(null)
 const messagesEl = ref<HTMLElement | null>(null)
 
 const placeholder = computed(() =>
-  mode.value === 'chat'
-    ? '输入知识库问题，例如：请假流程怎么走？'
-    : '输入自然语言申请，例如：明天下午请半天假，家里有事'
+  mode.value === 'chat' ? '输入问题，例如：请假流程怎么走？' : '输入申请，例如：明天下午请半天年假'
 )
 
 function scrollToLatest() {
@@ -38,31 +33,25 @@ function scrollToLatest() {
 }
 
 function stopTyping() {
-  if (typingTimer.value) {
-    clearInterval(typingTimer.value)
-    typingTimer.value = null
-  }
+  if (typingTimer.value) { clearInterval(typingTimer.value); typingTimer.value = null }
   typingQueue.value = ''
 }
 
 function createAssistantMessage(content = '') {
-  const message: Message = { role: 'assistant', content }
-  messages.value.push(message)
+  const msg: Message = { role: 'assistant', content }
+  messages.value.push(msg)
   scrollToLatest()
-  return message
+  return msg
 }
 
 function startTyping(answer: Message) {
   stopTyping()
   typingTimer.value = setInterval(() => {
-    if (!typingQueue.value.length) {
-      stopTyping()
-      return
-    }
+    if (!typingQueue.value.length) { stopTyping(); return }
     answer.content += typingQueue.value.slice(0, 1)
     typingQueue.value = typingQueue.value.slice(1)
     scrollToLatest()
-  }, 18)
+  }, 20)
 }
 
 function pushToken(answer: Message, content = '') {
@@ -73,14 +62,13 @@ function pushToken(answer: Message, content = '') {
 
 function handleAiEvent(answer: Message): AiEventHandlers {
   return {
-    thinking(event: AiEvent) {
-      answer.content = event.content || '正在处理中...'
-    },
+    thinking(event: AiEvent) { answer.content = event.content || '思考中...' },
     sources(event: AiEvent) {
       sources.value = (event.data || []) as Source[]
+      if (sources.value.length) sourcesOpen.value = true
     },
     token(event: AiEvent) {
-      if (answer.content === '正在处理中...') answer.content = ''
+      if (answer.content === '思考中...') answer.content = ''
       pushToken(answer, event.content || '')
     },
     confirmation(event: AiEvent) {
@@ -89,7 +77,7 @@ function handleAiEvent(answer: Message): AiEventHandlers {
     },
     submitted(event: AiEvent) {
       confirmation.value = null
-      answer.content = event.content || `申请已提交：${event.applicationNo || ''}`
+      answer.content = `已提交：${event.applicationNo || ''}`
     },
     done(event: AiEvent) {
       if (event.sessionId) sessionId.value = event.sessionId
@@ -107,12 +95,13 @@ async function send(action = '') {
 
   error.value = ''
   loading.value = true
+  sources.value = []
+  sourcesOpen.value = false
   if (action !== 'confirm') {
     messages.value.push({ role: 'user', content: text })
     input.value = ''
   }
-  const answer = createAssistantMessage('正在处理中...')
-
+  const answer = createAssistantMessage('思考中...')
   try {
     if (mode.value === 'chat') {
       await streamChat({ question: text, sessionId: sessionId.value }, handleAiEvent(answer))
@@ -132,422 +121,302 @@ function resetSession() {
   stopTyping()
   sessionId.value = crypto.randomUUID()
   sources.value = []
+  sourcesOpen.value = false
   confirmation.value = null
   messages.value = [{ role: 'assistant', content: '新的会话已开始。' }]
   error.value = ''
 }
 
-function handleComposerKeydown(event: KeyboardEvent) {
-  if (event.key === 'Enter' && !event.shiftKey) {
-    event.preventDefault()
-    void send()
-  }
+function handleKeydown(e: KeyboardEvent) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send() }
 }
 
 onBeforeUnmount(stopTyping)
 </script>
 
 <template>
-  <section class="chat-layout">
-    <div class="chat-main glass-panel">
-      <header class="panel-header">
-        <div class="panel-title">
-          <span class="title-icon"><Sparkles /></span>
-          <div>
-            <h2>智能对话</h2>
-            <p>基于企业知识与业务流程实时响应</p>
-          </div>
+  <div class="chat-root">
+    <!-- header -->
+    <div class="chat-top">
+      <div class="chat-brand">
+        <span class="brand-dot"><Sparkles /></span>
+        <div>
+          <strong>OA 智能助手</strong>
+          <span :class="['status', { busy: loading }]">{{ loading ? '正在回复...' : '在线' }}</span>
         </div>
-        <span class="runtime-status" :class="{ busy: loading }">
-          <i />{{ loading ? '正在生成' : '随时待命' }}
-        </span>
-      </header>
-
-      <div ref="messagesEl" class="messages" aria-live="polite">
-        <article v-for="(message, index) in messages" :key="index" class="message-row" :class="message.role">
-          <span class="message-avatar">
-            <Bot v-if="message.role === 'assistant'" />
-            <span v-else>我</span>
-          </span>
-          <div class="message-bubble">
-            {{ message.content }}
-            <span v-if="message.role === 'assistant' && loading && index === messages.length - 1" class="typing-cursor" />
-          </div>
-        </article>
       </div>
-
-      <div v-if="error" class="error-banner">{{ error }}</div>
-
-      <form class="composer" @submit.prevent="send()">
-        <textarea v-model="input" :placeholder="placeholder" rows="2" @keydown="handleComposerKeydown" />
-        <div class="composer-actions">
-          <span>Enter 发送 · Shift + Enter 换行</span>
-          <button class="icon-button ghost" type="button" title="新会话" aria-label="新会话" @click="resetSession">
-            <RotateCcw />
-          </button>
-          <button class="send-button" type="submit" :disabled="loading || !input.trim()">
-            <Send />
-            <span>{{ loading ? '生成中' : '发送' }}</span>
-          </button>
+      <div class="top-right">
+        <div class="mode-switch">
+          <button :class="{ on: mode === 'chat' }" @click="mode = 'chat'"><BrainCircuit /></button>
+          <button :class="{ on: mode === 'agent' }" @click="mode = 'agent'"><FileCheck2 /></button>
         </div>
-      </form>
+        <button class="new-btn" title="新会话" @click="resetSession"><RotateCcw /></button>
+      </div>
     </div>
 
-    <aside class="context-rail">
-      <section class="glass-panel mode-panel">
-        <p class="section-label">工作模式</p>
-        <div class="mode-tabs">
-          <button type="button" :class="{ active: mode === 'chat' }" @click="mode = 'chat'">
-            <BrainCircuit />
-            <span><strong>知识问答</strong><small>制度与流程检索</small></span>
-          </button>
-          <button type="button" :class="{ active: mode === 'agent' }" @click="mode = 'agent'">
-            <FileCheck2 />
-            <span><strong>智能填单</strong><small>自然语言发起申请</small></span>
-          </button>
-        </div>
-      </section>
+    <!-- messages -->
+    <div ref="messagesEl" class="chat-msgs">
+      <div v-for="(msg, idx) in messages" :key="idx" :class="['msg', msg.role]">
+        <div class="msg-bubble" v-text="msg.content" />
+        <span v-if="msg.role === 'assistant' && loading && idx === messages.length - 1" class="cursor" />
+      </div>
 
-      <section v-if="confirmation" class="glass-panel confirmation-panel">
-        <div class="confirmation-title"><FileCheck2 /><strong>待确认表单</strong></div>
+      <!-- sources inline -->
+      <div v-if="sources.length" class="sources-inline">
+        <button class="src-toggle" @click="sourcesOpen = !sourcesOpen">
+          <component :is="sourcesOpen ? ChevronDown : ChevronRight" />
+          引用来源 ({{ sources.length }})
+        </button>
+        <div v-if="sourcesOpen" class="src-list">
+          <div v-for="(s, i) in sources" :key="i" class="src-item">
+            <span class="src-score">{{ s.score ? (Number(s.score) * 100).toFixed(0) + '%' : '-' }}</span>
+            <div>
+              <strong>{{ s.title || '未命名' }}</strong>
+              <p>{{ s.snippet || s.content || '-' }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- confirmation -->
+    <div v-if="confirmation" class="confirm-bar">
+      <div class="confirm-info">
+        <FileCheck2 />
         <pre>{{ JSON.stringify(confirmation, null, 2) }}</pre>
-        <button class="confirm-button" :disabled="loading" @click="send('confirm')">确认提交</button>
-      </section>
+      </div>
+      <button class="btn primary" :disabled="loading" @click="send('confirm')">确认提交</button>
+    </div>
 
-      <section class="glass-panel source-panel">
-        <div class="source-title">
-          <div><span class="section-label">RAG CONTEXT</span><h3>引用来源</h3></div>
-          <span class="source-count">{{ sources.length }}</span>
-        </div>
-        <StreamSources :sources="sources" :loading="loading && !sources.length" />
-      </section>
-    </aside>
-  </section>
+    <!-- error -->
+    <div v-if="error" class="err-bar">{{ error }}</div>
+
+    <!-- composer -->
+    <div class="composer">
+      <textarea
+        v-model="input"
+        :placeholder="placeholder"
+        rows="1"
+        @keydown="handleKeydown"
+      />
+      <button class="btn primary send-btn" :disabled="loading || !input.trim()" @click="send()">
+        <Send />
+      </button>
+    </div>
+  </div>
 </template>
 
 <style scoped>
-.chat-layout {
-  min-height: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 300px;
-  gap: 12px;
+.chat-root {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
 }
 
-.glass-panel {
-  border: 1px solid rgba(148, 163, 184, 0.14);
-  border-radius: 8px;
-  background: linear-gradient(145deg, rgba(15, 23, 42, 0.74), rgba(8, 15, 29, 0.64));
-  box-shadow: 0 22px 58px rgba(2, 6, 23, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.045);
-  backdrop-filter: blur(14px) saturate(125%);
-}
-
-.chat-main {
-  min-width: 0;
-  min-height: 0;
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto auto;
-  overflow: hidden;
-}
-
-.panel-header {
-  height: 64px;
+/* ---- header ---- */
+.chat-top {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  padding: 0 18px;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.11);
-  background: linear-gradient(90deg, rgba(59, 130, 246, 0.07), transparent 48%);
+  height: 52px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-subtle);
+  flex-shrink: 0;
 }
 
-.panel-title,
-.confirmation-title,
-.source-title {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-}
-
-.title-icon {
-  width: 34px;
-  height: 34px;
-  display: grid;
-  place-items: center;
-  border: 1px solid rgba(96, 165, 250, 0.24);
-  border-radius: 7px;
-  background: linear-gradient(145deg, rgba(59, 130, 246, 0.18), rgba(139, 92, 246, 0.12));
-  color: #7dd3fc;
-  box-shadow: 0 0 20px rgba(59, 130, 246, 0.12);
-}
-
-.title-icon svg,
-.composer svg,
-.mode-tabs svg,
-.confirmation-title svg { width: 17px; height: 17px; }
-
-.panel-title h2,
-.source-title h3 {
-  margin: 0;
-  color: #f1f5f9;
-  font-size: 14px;
-  letter-spacing: 0;
-}
-
-.panel-title p {
-  margin: 4px 0 0;
-  color: #718198;
-  font-size: 10px;
-}
-
-.runtime-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  color: #86efac;
-  font-size: 10px;
-}
-
-.runtime-status i {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #22c55e;
-  box-shadow: 0 0 10px rgba(34, 197, 94, 0.75);
-}
-
-.runtime-status.busy { color: #7dd3fc; }
-.runtime-status.busy i { background: #38bdf8; animation: status-pulse 1.1s infinite; }
-
-.messages {
-  min-height: 0;
-  display: grid;
-  align-content: start;
-  gap: 18px;
-  padding: 22px 24px;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-}
-
-.message-row {
-  max-width: min(760px, 88%);
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  animation: message-enter 0.26s ease-out both;
-}
-
-.message-row.user {
-  justify-self: end;
-  flex-direction: row-reverse;
-}
-
-.message-avatar {
-  width: 30px;
-  height: 30px;
-  flex: 0 0 30px;
-  display: grid;
-  place-items: center;
-  border: 1px solid rgba(96, 165, 250, 0.2);
-  border-radius: 7px;
-  background: rgba(59, 130, 246, 0.1);
-  color: #7dd3fc;
-  font-size: 10px;
-  font-weight: 750;
-}
-
-.message-avatar svg { width: 15px; height: 15px; }
-.user .message-avatar { border-color: rgba(167, 139, 250, 0.24); background: rgba(139, 92, 246, 0.12); color: #c4b5fd; }
-
-.message-bubble {
-  padding: 11px 14px;
-  border: 1px solid rgba(148, 163, 184, 0.12);
-  border-radius: 3px 8px 8px 8px;
-  background: rgba(30, 41, 59, 0.58);
-  color: #d9e3f1;
-  font-size: 12px;
-  line-height: 1.75;
-  white-space: pre-wrap;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
-}
-
-.user .message-bubble {
-  border-color: rgba(96, 165, 250, 0.2);
-  border-radius: 8px 3px 8px 8px;
-  background: linear-gradient(135deg, rgba(37, 99, 235, 0.88), rgba(109, 40, 217, 0.78));
-  color: #fff;
-}
-
-.typing-cursor {
-  display: inline-block;
-  width: 5px;
-  height: 13px;
-  margin-left: 3px;
-  background: #67e8f9;
-  vertical-align: -2px;
-  animation: cursor-blink 0.8s steps(1) infinite;
-}
-
-.error-banner {
-  margin: 0 18px 10px;
-  padding: 9px 11px;
-  border: 1px solid rgba(244, 63, 94, 0.25);
-  border-radius: 6px;
-  background: rgba(159, 18, 57, 0.12);
-  color: #fda4af;
-  font-size: 11px;
-  animation: error-shake 0.28s ease;
-}
-
-.composer {
-  margin: 0 16px 16px;
-  padding: 10px 12px;
-  border: 1px solid rgba(96, 165, 250, 0.18);
+.chat-brand { display: flex; align-items: center; gap: 10px; }
+.brand-dot {
+  width: 34px; height: 34px;
+  display: grid; place-items: center;
   border-radius: 8px;
-  background: rgba(15, 23, 42, 0.82);
-  box-shadow: 0 12px 30px rgba(2, 6, 23, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.035);
-  transition: border-color 0.18s ease, box-shadow 0.18s ease;
-}
-
-.composer:focus-within {
-  border-color: rgba(96, 165, 250, 0.55);
-  box-shadow: 0 0 0 1px rgba(139, 92, 246, 0.28), 0 0 24px rgba(59, 130, 246, 0.13);
-}
-
-.composer textarea {
-  width: 100%;
-  min-height: 48px;
-  resize: none;
-  border: 0;
-  outline: 0;
-  background: transparent;
-  color: #eef4ff;
-  font: inherit;
-  font-size: 12px;
-  line-height: 1.6;
-}
-
-.composer textarea::placeholder { color: #536176; }
-
-.composer-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 7px;
-}
-
-.composer-actions > span {
-  margin-right: auto;
-  color: #536176;
-  font-size: 9px;
-}
-
-.icon-button,
-.send-button,
-.confirm-button {
-  min-height: 34px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  border: 1px solid transparent;
-  border-radius: 6px;
+  background: var(--brand-gradient);
   color: #fff;
-  cursor: pointer;
-  font: inherit;
-  font-size: 11px;
-  font-weight: 680;
-  transition: transform 0.15s ease, filter 0.18s ease, box-shadow 0.18s ease;
+  box-shadow: 0 4px 14px var(--primary-glow);
 }
+.brand-dot svg { width: 17px; height: 17px; }
+.chat-brand strong { font-size: 14px; color: var(--text); }
+.status { font-size: 11px; color: var(--success); display: block; margin-top: 1px; }
+.status.busy { color: var(--primary-soft); }
 
-.icon-button:active,
-.send-button:active,
-.confirm-button:active { transform: scale(0.97); }
+.top-right { display: flex; align-items: center; gap: 8px; }
 
-.icon-button { width: 34px; padding: 0; }
-.icon-button.ghost { border-color: rgba(148, 163, 184, 0.14); background: rgba(148, 163, 184, 0.06); color: #94a3b8; }
-.send-button { min-width: 82px; padding: 0 13px; background: linear-gradient(135deg, #2563eb, #7c3aed); box-shadow: 0 8px 18px rgba(37, 99, 235, 0.22); }
-.send-button:hover { filter: brightness(1.12); box-shadow: 0 10px 24px rgba(59, 130, 246, 0.3); }
-.send-button:disabled { cursor: not-allowed; opacity: 0.42; transform: none; }
-
-.context-rail {
-  min-height: 0;
-  display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
-  gap: 12px;
-  overflow-y: auto;
-}
-
-.mode-panel,
-.source-panel,
-.confirmation-panel { padding: 14px; }
-
-.section-label {
-  display: block;
-  margin: 0 0 9px;
-  color: #52647d;
-  font-size: 8px;
-  font-weight: 800;
-  letter-spacing: 1.4px;
-}
-
-.mode-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
-
-.mode-tabs button {
-  min-width: 0;
+.mode-switch {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 9px;
-  border: 1px solid rgba(148, 163, 184, 0.12);
-  border-radius: 6px;
-  background: rgba(30, 41, 59, 0.46);
-  color: #64748b;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  overflow: hidden;
+  background: var(--surface);
+}
+.mode-switch button {
+  width: 34px; height: 32px;
+  display: grid; place-items: center;
+  border: 0; background: transparent;
+  color: var(--muted); cursor: pointer;
+  transition: background .16s, color .16s;
+}
+.mode-switch button:hover { color: var(--text); }
+.mode-switch button.on {
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+  color: var(--primary);
+}
+.mode-switch svg { width: 15px; height: 15px; }
+
+.new-btn {
+  width: 32px; height: 32px;
+  display: grid; place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--muted);
   cursor: pointer;
-  text-align: left;
-  transition: transform 0.15s ease, color 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+  transition: color .16s, border-color .16s;
+}
+.new-btn:hover { color: var(--text); border-color: var(--border-strong); }
+.new-btn svg { width: 14px; height: 14px; }
+
+/* ---- messages ---- */
+.chat-msgs {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 24px 20px;
+  scroll-behavior: smooth;
 }
 
-.mode-tabs button:hover { color: #cbd5e1; transform: translateY(-2px); }
-.mode-tabs button:active { transform: scale(0.97); }
-.mode-tabs button.active { border-color: rgba(96, 165, 250, 0.32); background: linear-gradient(145deg, rgba(37, 99, 235, 0.2), rgba(124, 58, 237, 0.12)); color: #7dd3fc; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04); }
-.mode-tabs svg { flex: 0 0 17px; }
-.mode-tabs span { min-width: 0; display: grid; gap: 3px; }
-.mode-tabs strong { color: inherit; font-size: 10px; white-space: nowrap; }
-.mode-tabs small { overflow: hidden; color: #607087; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
-
-.confirmation-panel { border-color: rgba(245, 158, 11, 0.24); }
-.confirmation-title { color: #fbbf24; font-size: 11px; }
-.confirmation-panel pre { max-height: 160px; margin: 12px 0; padding: 10px; overflow: auto; border-radius: 6px; background: rgba(2, 6, 23, 0.55); color: #cbd5e1; font-size: 10px; line-height: 1.55; white-space: pre-wrap; }
-.confirm-button { width: 100%; background: linear-gradient(135deg, #d97706, #ea580c); }
-
-.source-panel { min-height: 0; overflow-y: auto; }
-.source-title { justify-content: space-between; margin-bottom: 10px; }
-.source-title .section-label { margin-bottom: 4px; }
-.source-count { min-width: 24px; height: 20px; display: grid; place-items: center; border-radius: 4px; background: rgba(34, 211, 238, 0.08); color: #67e8f9; font-size: 9px; font-variant-numeric: tabular-nums; }
-
-@keyframes message-enter { from { opacity: 0; transform: translateY(8px); } }
-@keyframes cursor-blink { 50% { opacity: 0; } }
-@keyframes status-pulse { 50% { opacity: 0.4; transform: scale(1.25); } }
-@keyframes error-shake { 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
-
-@media (max-width: 1040px) {
-  .chat-layout { grid-template-columns: minmax(0, 1fr) 260px; }
-  .mode-tabs { grid-template-columns: 1fr; }
+.msg {
+  display: flex;
+  margin-bottom: 20px;
+  animation: fade-up .25s ease both;
 }
 
-@media (max-width: 760px) {
-  .chat-layout { display: block; overflow-y: auto; }
-  .chat-main { min-height: 72vh; }
-  .context-rail { margin-top: 10px; overflow: visible; }
-  .mode-tabs { grid-template-columns: 1fr 1fr; }
-  .messages { padding: 18px 12px; }
-  .message-row { max-width: 96%; }
-  .composer-actions > span { display: none; }
+.msg.user { justify-content: flex-end; }
+
+.msg-bubble {
+  max-width: 72%;
+  padding: 12px 16px;
+  border-radius: 12px;
+  font-size: 13.5px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .message-row,
-  .runtime-status.busy i,
-  .typing-cursor { animation: none; }
+.assistant .msg-bubble {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-bottom-left-radius: 4px;
 }
+
+.user .msg-bubble {
+  background: var(--brand-gradient);
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+
+.cursor {
+  width: 2px; height: 18px;
+  background: var(--primary);
+  margin-left: 6px;
+  align-self: center;
+  animation: blink .7s steps(1) infinite;
+}
+
+/* ---- sources inline ---- */
+.sources-inline {
+  margin-top: 8px;
+  max-width: 72%;
+}
+
+.src-toggle {
+  display: inline-flex; align-items: center; gap: 4px;
+  border: 0; background: transparent;
+  color: var(--muted); font: inherit; font-size: 11px; cursor: pointer;
+  padding: 4px 0;
+}
+.src-toggle:hover { color: var(--primary-soft); }
+.src-toggle svg { width: 14px; }
+
+.src-list {
+  display: grid; gap: 8px;
+  margin-top: 8px;
+}
+
+.src-item {
+  display: flex; gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  font-size: 11px;
+}
+
+.src-score {
+  width: 36px; height: 22px; flex-shrink: 0;
+  display: grid; place-items: center;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+  color: var(--primary-soft);
+  font-size: 10px; font-weight: 700;
+}
+
+.src-item strong { display: block; color: var(--text); font-size: 11px; margin-bottom: 3px; }
+.src-item p { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.5;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+/* ---- confirmation ---- */
+.confirm-bar {
+  display: flex; align-items: flex-start; gap: 12px;
+  margin: 0 16px 8px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--warning) 30%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--warning) 6%, transparent);
+}
+.confirm-info { flex: 1; min-width: 0; display: flex; gap: 8px; color: var(--warning); font-size: 12px; }
+.confirm-info svg { width: 16px; flex-shrink: 0; margin-top: 2px; }
+.confirm-info pre { margin: 0; overflow: auto; max-height: 100px; font: inherit; font-size: 10px; white-space: pre-wrap; color: var(--text); }
+
+/* ---- error ---- */
+.err-bar {
+  margin: 0 16px 8px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+  color: var(--danger);
+  font-size: 11px;
+}
+
+/* ---- composer ---- */
+.composer {
+  display: flex; align-items: flex-end; gap: 10px;
+  padding: 12px 20px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-subtle);
+  flex-shrink: 0;
+}
+.composer textarea {
+  flex: 1;
+  min-height: 42px; max-height: 120px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  outline: 0; resize: none;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit; font-size: 13px; line-height: 1.5;
+  transition: border-color .18s;
+}
+.composer textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-glow); }
+.composer textarea::placeholder { color: var(--faint); }
+
+.send-btn {
+  width: 42px; height: 42px; flex-shrink: 0;
+  border-radius: 10px;
+}
+
+@keyframes fade-up { from { opacity: 0; transform: translateY(8px); } }
+@keyframes blink { 50% { opacity: 0; } }
 </style>

@@ -37,6 +37,10 @@ mybatis-plus:
     log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
     map-underscore-to-camel-case: true
 
+oa:
+  user-service:
+    base-url: ${USER_SERVICE_URL:http://localhost:8081}
+
 knife4j:
   enable: true
   setting:

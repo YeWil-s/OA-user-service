@@ -21,7 +21,7 @@
             <tr v-for="row in rows" :key="row.id">
               <td>{{ row.applicationNo }}</td>
               <td>{{ row.appTypeText }}</td>
-              <td>{{ row.startTime?.slice(0,10) }} ~ {{ row.endTime?.slice(0,10) }}</td>
+              <td>{{ timeCell(row) }}</td>
               <td>{{ row.reason?.slice(0, 24) }}{{ row.reason?.length > 24 ? '...' : '' }}</td>
               <td><span class="pill" :class="statusClass(row.status)">{{ row.statusText }}</span></td>
               <td v-if="mode === 'mine' && row.status === 1">
@@ -74,6 +74,13 @@ async function handleCancel(id: number) {
 
 function statusClass(s: number) {
   return { 1: 'warn', 2: 'success', 3: 'danger', 4: 'muted' }[s] || ''
+}
+
+function timeCell(row: ApplicationVO) {
+  if (row.appType === 4) return row.targetDeptName ? `调至 ${row.targetDeptName}` : '-'
+  if (row.appType === 5) return row.assetName || row.assetCode || '-'
+  if (row.startTime && row.endTime) return `${row.startTime.slice(0, 10)} ~ ${row.endTime.slice(0, 10)}`
+  return '-'
 }
 </script>
 

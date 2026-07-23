@@ -49,13 +49,26 @@
       <template #footer><button class="btn" @click="dialogOpen = false">取消</button><button class="btn primary" :disabled="saving" @click="save">{{ saving ? '保存中' : '保存' }}</button></template>
     </ModalDialog>
 
-    <ModalDialog v-model="assignOpen" title="分配菜单" width="560px">
-      <div class="menu-checks">
-        <label v-for="menu in flatMenus" :key="menu.id" class="check-row" :style="{ paddingLeft: `${menu.level * 18 + 10}px` }">
-          <input v-model="checkedMenuIds" type="checkbox" :value="menu.id" />
-          <span>{{ menu.menuName }}</span>
-          <small>{{ menu.permissionCode || menu.path || '-' }}</small>
-        </label>
+    <ModalDialog v-model="assignOpen" title="分配菜单" width="640px">
+      <div class="menu-tree-panel">
+        <div class="menu-tree-toolbar">
+          <button v-if="!assignAllExpanded" class="btn" @click="expandAllAssign">展开全部</button>
+          <button v-else class="btn" @click="collapseAllAssign">折叠全部</button>
+        </div>
+        <MenuTree
+          :nodes="menus"
+          checkable
+          :checked-ids="checkedMenuIds"
+          :expanded-ids="assignExpandedIds"
+          @toggle-expand="toggleAssignExpand"
+          @toggle-check="toggleMenuCheck"
+        >
+          <template #node="{ node }">
+            <span class="assign-node-name">{{ node.menuName }}</span>
+            <span class="assign-node-type">{{ node.menuType === 1 ? '目录' : node.menuType === 3 ? '按钮' : '菜单' }}</span>
+            <span class="assign-node-info">{{ node.permissionCode || node.path || '-' }}</span>
+          </template>
+        </MenuTree>
       </div>
       <template #footer><button class="btn" @click="assignOpen = false">取消</button><button class="btn primary" :disabled="saving" @click="saveAssign">保存授权</button></template>
     </ModalDialog>
@@ -65,6 +78,7 @@
 <script setup lang="ts">
 import { Pencil, Plus, RefreshCw, ShieldCheck, Trash2 } from 'lucide-vue-next'
 import { computed, onMounted, reactive, ref } from 'vue'
+import MenuTree from '@/components/MenuTree.vue'
 import ModalDialog from '@/components/ModalDialog.vue'
 import SkeletonTableRows from '@/components/SkeletonTableRows.vue'
 import StatusPill from '@/components/StatusPill.vue'
@@ -82,12 +96,32 @@ const assignOpen = ref(false)
 const editing = ref<Role | null>(null)
 const assigning = ref<Role | null>(null)
 const checkedMenuIds = ref<number[]>([])
+const assignExpandedIds = ref<number[]>([])
 const form = reactive<Partial<Role>>({})
 
-const flatMenus = computed(() => flatten(menus.value))
-function flatten(nodes: MenuNode[], level = 0): Array<MenuNode & { level: number }> {
-  return nodes.flatMap((node) => [{ ...node, level }, ...flatten(node.children || [], level + 1)])
+const assignAllExpanded = computed(() => {
+  const all = collectAssignIds(menus.value)
+  return all.length > 0 && all.every((id) => assignExpandedIds.value.includes(id))
+})
+
+function collectAssignIds(nodes: MenuNode[]): number[] {
+  return nodes.flatMap((n) => [n.id, ...collectAssignIds(n.children || [])])
 }
+
+function toggleAssignExpand(id: number) {
+  const idx = assignExpandedIds.value.indexOf(id)
+  if (idx >= 0) assignExpandedIds.value.splice(idx, 1)
+  else assignExpandedIds.value.push(id)
+}
+
+function toggleMenuCheck(id: number) {
+  const idx = checkedMenuIds.value.indexOf(id)
+  if (idx >= 0) checkedMenuIds.value.splice(idx, 1)
+  else checkedMenuIds.value.push(id)
+}
+
+function expandAllAssign() { assignExpandedIds.value = collectAssignIds(menus.value) }
+function collapseAllAssign() { assignExpandedIds.value = [] }
 
 const dataScopeText = (value?: number) => ({ 0: '全部数据', 1: '本部门及下级', 2: '本部门', 3: '本人' }[value ?? 3])
 const pageRows = <T,>(page: { records?: T[]; list?: T[] }) => page.records || page.list || []
@@ -158,6 +192,7 @@ async function openAssign(row: Role) {
   try {
     assigning.value = row
     checkedMenuIds.value = await systemApi.roleMenus(row.id)
+    assignExpandedIds.value = collectAssignIds(menus.value)
     assignOpen.value = true
   } catch (err) {
     error.value = err instanceof Error ? err.message : '菜单授权数据加载失败'
@@ -186,23 +221,43 @@ onMounted(load)
   grid-column: 1 / -1;
 }
 
-.menu-checks {
-  display: grid;
+.menu-tree-panel {
+  max-height: 55vh;
+  overflow: auto;
+}
+
+.menu-tree-toolbar {
+  display: flex;
   gap: 8px;
+  margin-bottom: 8px;
 }
 
-.check-row {
-  min-height: 40px;
-  display: grid;
-  grid-template-columns: 20px minmax(110px, 1fr) minmax(0, 1.4fr);
-  align-items: center;
-  gap: 10px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--surface-soft);
+.assign-node-name {
+  flex: 1;
+  min-width: 120px;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.check-row small {
+.assign-node-type {
+  width: 44px;
+  flex: 0 0 44px;
   color: var(--muted);
+  font-size: 10px;
+}
+
+.assign-node-info {
+  width: 130px;
+  flex: 0 0 130px;
+  color: var(--info);
+  font-size: 10px;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>

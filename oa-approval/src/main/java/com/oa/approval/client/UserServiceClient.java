@@ -7,7 +7,10 @@ import com.oa.common.remote.UserInfo;
 import com.oa.common.result.ResultCode;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClientException;
@@ -15,6 +18,7 @@ import org.springframework.web.client.RestTemplate;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -76,6 +80,14 @@ public class UserServiceClient {
     public String getDeptName(Long deptId) {
         DeptInfo dept = mapDepts().get(deptId);
         return dept == null ? "未知部门" : dept.getDeptName();
+    }
+
+    public String getPositionName(Long positionId) {
+        if (positionId == null) {
+            return null;
+        }
+        Map<Long, String> positionMap = mapPositions();
+        return positionMap.getOrDefault(positionId, "未知岗位");
     }
 
     public Long resolveApproverId(Long deptId, Long applicantUserId) {
@@ -148,10 +160,63 @@ public class UserServiceClient {
         return result;
     }
 
+    public void updateEmployeeDeptPosition(Long userId, Long deptId, Long positionId) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        Map<String, Object> body = new HashMap<>();
+        body.put("deptId", deptId);
+        body.put("positionId", positionId);
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
+        try {
+            restTemplate.exchange(
+                    baseUrl + "/api/user/internal/employees/" + userId + "/dept-position",
+                    HttpMethod.PUT,
+                    entity,
+                    new ParameterizedTypeReference<com.oa.common.remote.RemoteResult<Void>>() {
+                    });
+        } catch (RestClientException ex) {
+            throw new BusinessException(ResultCode.INTERNAL_ERROR, "更新用户部门岗位失败: " + ex.getMessage());
+        }
+    }
+
     private String trimSlash(String value) {
         if (value != null && value.endsWith("/")) {
             return value.substring(0, value.length() - 1);
         }
         return value;
     }
+
+    private Map<Long, String> mapPositions() {
+        try {
+            ResponseEntity<RemoteResult<Map<String, Object>>> response = restTemplate.exchange(
+                    baseUrl + "/api/user/positions?pageNum=1&pageSize=500",
+                    HttpMethod.GET,
+                    null,
+                    new ParameterizedTypeReference<RemoteResult<Map<String, Object>>>() {
+                    });
+            RemoteResult<Map<String, Object>> body = response.getBody();
+            if (body == null || body.getCode() != 200 || body.getData() == null) {
+                return Collections.emptyMap();
+            }
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> records = (List<Map<String, Object>>) body.getData().get("records");
+            if (records == null) {
+                return Collections.emptyMap();
+            }
+            Map<Long, String> result = new java.util.HashMap<>();
+            for (Map<String, Object> record : records) {
+                Object idObj = record.get("id");
+                Object nameObj = record.get("positionName");
+                if (idObj instanceof Number && nameObj != null) {
+                    result.put(((Number) idObj).longValue(), nameObj.toString());
+                }
+            }
+            return result;
+        } catch (RestClientException ex) {
+            log.warn("获取岗位列表失败: {}", ex.getMessage());
+            return Collections.emptyMap();
+        }
+    }
+
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(UserServiceClient.class);
 }

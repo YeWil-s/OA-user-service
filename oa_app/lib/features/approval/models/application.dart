@@ -39,6 +39,10 @@ class Application {
         return '加班';
       case 3:
         return '外出';
+      case 4:
+        return '调岗';
+      case 5:
+        return '资产领用';
       default:
         return '未知';
     }
@@ -100,12 +104,16 @@ class Application {
 
   factory Application.fromJson(Map<String, dynamic> json) {
     return Application(
-      id: json['id'] as int,
-      applicationNo: json['applicationNo'] as String,
+      id: json['id'] as int? ?? 0,
+      applicationNo: json['applicationNo'] as String? ?? '',
       appType: json['appType'] as int? ?? 1,
       leaveType: json['leaveType'] as int?,
-      startTime: DateTime.parse(json['startTime'] as String),
-      endTime: DateTime.parse(json['endTime'] as String),
+      startTime: json['startTime'] != null
+          ? DateTime.parse(json['startTime'] as String)
+          : DateTime.now(),
+      endTime: json['endTime'] != null
+          ? DateTime.parse(json['endTime'] as String)
+          : DateTime.now(),
       duration: (json['duration'] as num?)?.toDouble() ?? 0,
       reason: json['reason'] as String? ?? '',
       status: _mapStatus(json['status']),

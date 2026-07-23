@@ -149,7 +149,10 @@ export const aiApi = {
     update: (id: string | number, body: Record<string, unknown>) => request(`/api/ai/knowledge/${id}`, { method: 'PUT', body }),
     remove: (id: string | number) => request(`/api/ai/knowledge/${id}`, { method: 'DELETE' }),
     reindex: () => request('/api/ai/knowledge/reindex', { method: 'POST' }),
-    tags: () => request<Array<Record<string, unknown>>>('/api/ai/knowledge/tags')
+    tags: () => request<Array<Record<string, unknown>>>('/api/ai/knowledge/tags'),
+    createTag: (body: Record<string, unknown>) => request('/api/ai/knowledge/tags', { method: 'POST', body }),
+    updateTag: (id: number | string, body: Record<string, unknown>) => request(`/api/ai/knowledge/tags/${id}`, { method: 'PUT', body }),
+    deleteTag: (id: number | string) => request(`/api/ai/knowledge/tags/${id}`, { method: 'DELETE' })
   },
   conversations: {
     list: (params: Record<string, unknown>) => request<Record<string, unknown>>('/api/ai/conversations', { params }),

@@ -5,7 +5,9 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.oa.attendance.client.UserServiceClient;
 import com.oa.attendance.dto.AttendanceRecordQueryDTO;
+import com.oa.attendance.dto.FieldWorkDTO;
 import com.oa.attendance.dto.LeaveDTO;
+import com.oa.attendance.dto.OvertimeDTO;
 import com.oa.attendance.dto.PunchDTO;
 import com.oa.attendance.dto.ScheduleItem;
 import com.oa.attendance.dto.ShiftDTO;
@@ -321,6 +323,86 @@ public class AttendanceServiceImpl implements IAttendanceService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    public void markOvertime(OvertimeDTO dto) {
+        LocalDate date = dto.getStartDate();
+        while (!date.isAfter(dto.getEndDate())) {
+            AttSchedule existing = attScheduleMapper.selectOne(new LambdaQueryWrapper<AttSchedule>()
+                    .eq(AttSchedule::getUserId, dto.getUserId())
+                    .eq(AttSchedule::getScheduleDate, date)
+                    .last("limit 1"));
+            if (existing != null) {
+                existing.setOvertimeHours(dto.getOvertimeHours());
+                attScheduleMapper.updateById(existing);
+            } else {
+                UserShift userShift = userShiftMapper.selectOne(new LambdaQueryWrapper<UserShift>()
+                        .eq(UserShift::getUserId, dto.getUserId())
+                        .last("limit 1"));
+                AttSchedule schedule = new AttSchedule();
+                schedule.setUserId(dto.getUserId());
+                schedule.setScheduleDate(date);
+                schedule.setShiftId(userShift != null ? userShift.getShiftId() : 1L);
+                schedule.setStatus(1);
+                schedule.setOvertimeHours(dto.getOvertimeHours());
+                schedule.setCreateTime(LocalDateTime.now());
+                attScheduleMapper.insert(schedule);
+            }
+            date = date.plusDays(1);
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void cancelOvertime(Long applicationId) {
+        List<AttSchedule> overtimeSchedules = attScheduleMapper.selectList(new LambdaQueryWrapper<AttSchedule>()
+                .gt(AttSchedule::getOvertimeHours, 0));
+        for (AttSchedule s : overtimeSchedules) {
+            s.setOvertimeHours(java.math.BigDecimal.ZERO);
+            attScheduleMapper.updateById(s);
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void markFieldWork(FieldWorkDTO dto) {
+        LocalDate date = dto.getStartDate();
+        while (!date.isAfter(dto.getEndDate())) {
+            AttRecord existing = attRecordMapper.selectOne(new LambdaQueryWrapper<AttRecord>()
+                    .eq(AttRecord::getUserId, dto.getUserId())
+                    .eq(AttRecord::getRecordDate, date)
+                    .last("limit 1"));
+            if (existing != null) {
+                existing.setPunchType(2);
+                attRecordMapper.updateById(existing);
+            } else {
+                AttRecord fieldRecord = new AttRecord();
+                fieldRecord.setUserId(dto.getUserId());
+                fieldRecord.setRecordDate(date);
+                fieldRecord.setPunchType(2);
+                fieldRecord.setCreateTime(LocalDateTime.now());
+                attRecordMapper.insert(fieldRecord);
+            }
+            date = date.plusDays(1);
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void cancelFieldWork(Long applicationId) {
+        // 删除仅有外勤标记且无实际打卡时间的记录，恢复有打卡记录的 punch_type 为 1
+        List<AttRecord> fieldRecords = attRecordMapper.selectList(new LambdaQueryWrapper<AttRecord>()
+                .eq(AttRecord::getPunchType, 2));
+        for (AttRecord record : fieldRecords) {
+            if (record.getPunchInTime() == null && record.getPunchOutTime() == null) {
+                attRecordMapper.deleteById(record.getId());
+            } else {
+                record.setPunchType(1);
+                attRecordMapper.updateById(record);
+            }
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
     public void generateDailySummary(LocalDate date) {
         dailySummaryMapper.delete(new LambdaQueryWrapper<AttDailySummary>()
                 .eq(AttDailySummary::getSummaryDate, date));
@@ -431,10 +513,60 @@ public class AttendanceServiceImpl implements IAttendanceService {
         if (userIds != null) {
             wrapper.in(AttRecord::getUserId, userIds);
         }
-        Page<AttRecord> page = attRecordMapper.selectPage(new Page<>(safeDto.getPageNum(), safeDto.getPageSize()), wrapper);
+
+        // if status filter is set, fetch more records to ensure enough after filtering
+        boolean hasStatusFilter = StringUtils.hasText(safeDto.getStatus());
+        if (hasStatusFilter) {
+            // fetch all records in range to filter by status (status is computed, not stored)
+            wrapper.last("limit 2000");
+        }
+        Page<AttRecord> page = attRecordMapper.selectPage(
+                new Page<>(hasStatusFilter ? 1 : safeDto.getPageNum(),
+                           hasStatusFilter ? 2000 : safeDto.getPageSize()),
+                wrapper);
+        List<AttendanceRecordVO> allVos = buildRecordViews(page.getRecords());
+
+        if (hasStatusFilter) {
+            allVos = filterByStatus(allVos, safeDto.getStatus());
+            // in-memory pagination
+            int fromIndex = (safeDto.getPageNum() - 1) * safeDto.getPageSize();
+            int toIndex = Math.min(fromIndex + safeDto.getPageSize(), allVos.size());
+            if (fromIndex >= allVos.size()) {
+                allVos = Collections.emptyList();
+            } else {
+                allVos = allVos.subList(fromIndex, toIndex);
+            }
+            Page<AttendanceRecordVO> result = new Page<>(safeDto.getPageNum(), safeDto.getPageSize(), page.getTotal());
+            result.setRecords(allVos);
+            return result;
+        }
+
         Page<AttendanceRecordVO> result = new Page<>(page.getCurrent(), page.getSize(), page.getTotal());
-        result.setRecords(buildRecordViews(page.getRecords()));
+        result.setRecords(allVos);
         return result;
+    }
+
+    private List<AttendanceRecordVO> filterByStatus(List<AttendanceRecordVO> vos, String status) {
+        if (vos == null || vos.isEmpty() || !StringUtils.hasText(status)) {
+            return vos;
+        }
+        return vos.stream()
+                .filter(vo -> matchesStatus(vo.getStatusLabel(), status))
+                .toList();
+    }
+
+    private boolean matchesStatus(String statusLabel, String filterValue) {
+        if (statusLabel == null) return false;
+        return switch (filterValue) {
+            case "normal" -> "正常".equals(statusLabel);
+            case "late" -> "迟到".equals(statusLabel);
+            case "early" -> "早退".equals(statusLabel);
+            case "late_early" -> "迟到/早退".equals(statusLabel);
+            case "missing" -> "缺卡".equals(statusLabel);
+            case "leave" -> "请假".equals(statusLabel);
+            case "field" -> "外勤".equals(statusLabel);
+            default -> true;
+        };
     }
 
     private List<AttendanceRecordVO> buildRecordViews(List<AttRecord> records) {
@@ -444,12 +576,28 @@ public class AttendanceServiceImpl implements IAttendanceService {
         List<Long> userIds = records.stream().map(AttRecord::getUserId).distinct().toList();
         Map<Long, com.oa.common.remote.UserInfo> userMap = userServiceClient.mapUsers(userIds);
         Map<Long, com.oa.common.remote.DeptInfo> deptMap = userServiceClient.mapDepts();
+
+        // batch-fetch schedules for overtime info
+        Map<String, java.math.BigDecimal> overtimeMap = new java.util.HashMap<>();
+        if (!records.isEmpty()) {
+            List<LocalDate> dates = records.stream().map(AttRecord::getRecordDate).distinct().toList();
+            List<AttSchedule> schedules = attScheduleMapper.selectList(new LambdaQueryWrapper<AttSchedule>()
+                    .in(AttSchedule::getUserId, userIds)
+                    .in(AttSchedule::getScheduleDate, dates));
+            for (AttSchedule s : schedules) {
+                if (s.getOvertimeHours() != null && s.getOvertimeHours().compareTo(java.math.BigDecimal.ZERO) > 0) {
+                    overtimeMap.put(s.getUserId() + "_" + s.getScheduleDate(), s.getOvertimeHours());
+                }
+            }
+        }
+
         return records.stream()
                 .map(record -> {
                     com.oa.common.remote.UserInfo user = userMap.get(record.getUserId());
                     com.oa.common.remote.DeptInfo dept = user == null ? null : deptMap.get(user.getDeptId());
                     AttShift shift = findShiftForUser(record.getUserId());
-                    return buildRecordVO(record, user, dept, shift);
+                    java.math.BigDecimal overtime = overtimeMap.get(record.getUserId() + "_" + record.getRecordDate());
+                    return buildRecordVO(record, user, dept, shift, overtime);
                 })
                 .toList();
     }
@@ -541,6 +689,14 @@ public class AttendanceServiceImpl implements IAttendanceService {
                                              com.oa.common.remote.UserInfo user,
                                              com.oa.common.remote.DeptInfo dept,
                                              AttShift shift) {
+        return buildRecordVO(record, user, dept, shift, null);
+    }
+
+    private AttendanceRecordVO buildRecordVO(AttRecord record,
+                                             com.oa.common.remote.UserInfo user,
+                                             com.oa.common.remote.DeptInfo dept,
+                                             AttShift shift,
+                                             java.math.BigDecimal overtimeHours) {
         AttendanceRecordVO vo = new AttendanceRecordVO();
         vo.setId(record.getId());
         vo.setUserId(record.getUserId());
@@ -553,12 +709,12 @@ public class AttendanceServiceImpl implements IAttendanceService {
         vo.setPunchInTime(record.getPunchInTime());
         vo.setPunchOutTime(record.getPunchOutTime());
         vo.setLateMinutes(calcLateMinutes(record, shift));
-        vo.setEarlyMinutes(calcEarlyMinutes(record, shift));
+        vo.setEarlyMinutes(calcEarlyMinutes(record, shift, overtimeHours));
         vo.setWorkHours(calcWorkHours(record));
         vo.setPunchType(record.getPunchType());
         vo.setDeviceInfo(record.getDeviceInfo());
         vo.setLocation(record.getLocation());
-        vo.setStatusLabel(evaluateStatus(record, shift));
+        vo.setStatusLabel(evaluateStatus(record, shift, overtimeHours));
         return vo;
     }
 
@@ -575,10 +731,18 @@ public class AttendanceServiceImpl implements IAttendanceService {
     }
 
     private Integer calcEarlyMinutes(AttRecord record, AttShift shift) {
+        return calcEarlyMinutes(record, shift, null);
+    }
+
+    private Integer calcEarlyMinutes(AttRecord record, AttShift shift, java.math.BigDecimal overtimeHours) {
         if (record == null || shift == null || record.getPunchOutTime() == null) {
             return 0;
         }
-        LocalDateTime threshold = record.getRecordDate().atTime(shift.getEndTime());
+        java.time.LocalTime endTime = shift.getEndTime();
+        if (overtimeHours != null && overtimeHours.compareTo(java.math.BigDecimal.ZERO) > 0) {
+            endTime = endTime.plusMinutes(overtimeHours.multiply(java.math.BigDecimal.valueOf(60)).longValue());
+        }
+        LocalDateTime threshold = record.getRecordDate().atTime(endTime);
         if (!record.getPunchOutTime().isBefore(threshold)) {
             return 0;
         }
@@ -595,8 +759,15 @@ public class AttendanceServiceImpl implements IAttendanceService {
     }
 
     private String evaluateStatus(AttRecord record, AttShift shift) {
+        return evaluateStatus(record, shift, null);
+    }
+
+    private String evaluateStatus(AttRecord record, AttShift shift, java.math.BigDecimal overtimeHours) {
         if (Integer.valueOf(3).equals(record.getPunchType())) {
             return "请假";
+        }
+        if (Integer.valueOf(2).equals(record.getPunchType())) {
+            return "外勤";
         }
         if (shift == null) {
             return "班次未分配";
@@ -605,7 +776,7 @@ public class AttendanceServiceImpl implements IAttendanceService {
             return "缺卡";
         }
         int lateMinutes = calcLateMinutes(record, shift);
-        int earlyMinutes = calcEarlyMinutes(record, shift);
+        int earlyMinutes = calcEarlyMinutes(record, shift, overtimeHours);
         if (lateMinutes > 0 && earlyMinutes > 0) {
             return "迟到/早退";
         }
@@ -835,6 +1006,7 @@ public class AttendanceServiceImpl implements IAttendanceService {
                 vo.setEndTime(shift != null ? shift.getEndTime() : null);
                 vo.setStatus(s.getStatus());
                 vo.setStatusText(null);
+                vo.setOvertimeHours(s.getOvertimeHours());
             } else if (defaultShift != null) {
                 vo.setId(null);
                 vo.setShiftId(defaultShift.getId());

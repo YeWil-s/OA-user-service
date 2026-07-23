@@ -16,6 +16,7 @@ public class ScheduleVO {
     private LocalTime endTime;
     private Integer status;
     private String statusText;
+    private java.math.BigDecimal overtimeHours;
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -39,4 +40,6 @@ public class ScheduleVO {
     public void setStatus(Integer status) { this.status = status; }
     public String getStatusText() { return statusText != null ? statusText : (Integer.valueOf(2).equals(status) ? "请假" : "正常"); }
     public void setStatusText(String statusText) { this.statusText = statusText; }
+    public java.math.BigDecimal getOvertimeHours() { return overtimeHours; }
+    public void setOvertimeHours(java.math.BigDecimal overtimeHours) { this.overtimeHours = overtimeHours; }
 }

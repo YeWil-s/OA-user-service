@@ -18,6 +18,7 @@
       <div class="toolbar filters">
         <input v-model.trim="keyword" class="field filter-input" placeholder="关键词" @keyup.enter="load" />
         <input v-if="moduleKey === 'attendanceRecords'" v-model="month" class="field filter-input" type="month" />
+        <input v-if="moduleKey === 'attendanceRecords'" v-model="date" class="field filter-input" type="date" />
         <select v-if="statusOptions.length" v-model="statusFilter" class="select filter-input">
           <option value="">全部状态</option>
           <option v-for="option in statusOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
@@ -86,7 +87,7 @@
             <div><span>所属部门</span><strong>{{ detailValue('deptName') }}</strong></div>
             <div><span>执行班次</span><strong>{{ detailValue('shiftName') }}</strong></div>
             <div><span>考勤日期</span><strong>{{ detailValue('recordDate') }}</strong></div>
-            <div><span>打卡类型</span><strong>{{ detailValue('punchType') }}</strong></div>
+            <div><span>打卡类型</span><strong>{{ punchTypeLabel(detailData?.punchType) }}</strong></div>
           </div>
         </section>
 
@@ -161,6 +162,7 @@ const rows = ref<TableRow[]>([])
 const keyword = ref('')
 const statusFilter = ref('')
 const month = ref(currentMonth())
+const date = ref('')
 const loading = ref(false)
 const saving = ref(false)
 const error = ref('')
@@ -182,6 +184,7 @@ const configs: Record<ModuleKey, Config> = {
       { key: 'recordDate', label: '日期' },
       { key: 'punchInTimeText', label: '上班' },
       { key: 'punchOutTimeText', label: '下班' },
+      { key: 'punchTypeText', label: '类型' },
       { key: 'statusLabel', label: '状态' }
     ],
     canView: true
@@ -242,6 +245,15 @@ const configs: Record<ModuleKey, Config> = {
 const config = computed(() => configs[moduleKey.value])
 const hasActions = computed(() => Boolean(config.value.canView || config.value.canEdit || config.value.canDelete))
 const statusOptions = computed(() => {
+  if (moduleKey.value === 'attendanceRecords') return [
+    { value: 'normal', label: '正常' },
+    { value: 'late', label: '迟到' },
+    { value: 'early', label: '早退' },
+    { value: 'late_early', label: '迟到/早退' },
+    { value: 'missing', label: '缺卡' },
+    { value: 'leave', label: '请假' },
+    { value: 'field', label: '外勤' }
+  ]
   if (moduleKey.value === 'applications') return [{ value: '1', label: '审批中' }, { value: '2', label: '已通过' }, { value: '3', label: '已驳回' }, { value: '4', label: '已撤销' }]
   if (moduleKey.value === 'assets') return [{ value: '1', label: '可领用' }, { value: '2', label: '已领用' }, { value: '0', label: '已报废' }]
   return []
@@ -252,7 +264,8 @@ const filteredRows = computed(() => {
 })
 
 const pageRows = <T,>(page: PageResult<T>) => page.records || page.list || []
-const appTypeText = (value?: number) => ({ 1: '请假', 2: '加班', 3: '外出' }[value ?? 1])
+const appTypeText = (value?: number) => ({ 1: '请假', 2: '加班', 3: '外出', 4: '调岗', 5: '资产领用' }[value ?? 1])
+const punchTypeLabel = (value?: number) => ({ 1: '现场', 2: '外勤', 3: '请假' }[value ?? 1] || '-')
 const appStatusText = (value?: number) => ({ 0: '草稿', 1: '审批中', 2: '已通过', 3: '已驳回', 4: '已撤销' }[value ?? 1])
 const assetCategoryText = (value?: number | string) => ({ 1: '固定资产', 2: '办公用品', 3: '电子设备' }[Number(value)] || String(value || '-'))
 const assetStatusText = (value?: number) => ({ 0: '已报废', 1: '可领用', 2: '已领用' }[value ?? 1])
@@ -269,6 +282,7 @@ function detailValue(key: string, suffix = '') {
 }
 
 function mapAttendance(row: AttendanceRecord): TableRow {
+  const punchTypeMap: Record<number, string> = { 1: '现场', 2: '外勤', 3: '请假' }
   return {
     ...row,
     id: row.id,
@@ -276,6 +290,7 @@ function mapAttendance(row: AttendanceRecord): TableRow {
     deptName: row.deptName || '-',
     punchInTimeText: timeText(row.punchInTime),
     punchOutTimeText: timeText(row.punchOutTime),
+    punchTypeText: punchTypeMap[row.punchType ?? 1] || '现场',
     statusLabel: row.statusLabel || '-'
   }
 }
@@ -290,12 +305,20 @@ function mapShift(row: Shift): TableRow {
 }
 
 function mapApplication(row: ApprovalApplication): TableRow {
+  let summaryText = '-'
+  if (row.appType === 4) {
+    summaryText = row.targetDeptName || row.targetDeptId ? `调至 ${row.targetDeptName || row.targetDeptId}` : '-'
+  } else if (row.appType === 5) {
+    summaryText = row.assetName || row.assetCode || (row.assetId ? `资产 #${row.assetId}` : '-')
+  } else if (row.duration != null) {
+    summaryText = `${row.duration} 小时`
+  }
   return {
     ...row,
     id: row.id,
     appTypeText: row.appTypeText || appTypeText(row.appType),
     statusText: row.statusText || appStatusText(row.status),
-    durationText: row.duration == null ? '-' : `${row.duration} 小时`,
+    durationText: summaryText,
     latestActionText: row.latestActionText || '-'
   }
 }
@@ -318,7 +341,11 @@ async function load() {
   message.value = ''
   try {
     if (moduleKey.value === 'attendanceRecords') {
-      const result = await attendanceApi.allRecords({ month: month.value, pageNum: 1, pageSize: 100 })
+      const params: Record<string, string | number> = { pageNum: 1, pageSize: 100 }
+      if (date.value) params.date = date.value
+      if (month.value) params.month = month.value
+      if (statusFilter.value) params.status = statusFilter.value
+      const result = await attendanceApi.allRecords(params)
       rows.value = pageRows(result).map(mapAttendance)
     } else if (moduleKey.value === 'shifts') {
       const result = await attendanceApi.shifts({ pageNum: 1, pageSize: 100 })

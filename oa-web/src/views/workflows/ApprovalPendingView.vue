@@ -16,7 +16,7 @@
         <header>
           <div>
             <h3>{{ item.applicationNo }}</h3>
-            <p>{{ item.appTypeText || appTypeText(item.appType) }} · {{ item.duration ?? '-' }} 小时</p>
+            <p>{{ item.appTypeText || appTypeText(item.appType) }} · {{ summaryText(item) }}</p>
           </div>
           <span class="pill warn">{{ item.statusText || '审批中' }}</span>
         </header>
@@ -50,7 +50,12 @@ const error = ref('')
 const message = ref('')
 const comments = reactive<Record<number, string>>({})
 const pageRows = <T,>(page: { records?: T[]; list?: T[] }) => page.records || page.list || []
-const appTypeText = (value?: number) => ({ 1: '请假', 2: '加班', 3: '外出' }[value ?? 1])
+const appTypeText = (value?: number) => ({ 1: '请假', 2: '加班', 3: '外出', 4: '调岗', 5: '资产领用' }[value ?? 1])
+function summaryText(item: ApprovalApplication) {
+  if (item.appType === 4) return item.targetDeptName ? `调至 ${item.targetDeptName}` : '-'
+  if (item.appType === 5) return item.assetName || item.assetCode || '-'
+  return `${item.duration ?? '-'} 小时`
+}
 
 async function load() {
   loading.value = true

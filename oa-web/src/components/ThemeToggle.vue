@@ -24,7 +24,7 @@ function toggle() {
   theme.value = theme.value === 'dark' ? 'light' : 'dark'
   document.documentElement.dataset.theme = theme.value
   document.documentElement.style.colorScheme = theme.value
-  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme.value === 'light' ? '#edf1f6' : '#020617')
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme.value === 'light' ? '#f0f4fa' : '#060f1f')
   localStorage.setItem('oa_theme', theme.value)
 }
 </script>

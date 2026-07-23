@@ -1,11 +1,15 @@
 class ApplicationForm {
-  int appType; // 1=请假, 2=加班, 3=外出
+  int appType; // 1=请假, 2=加班, 3=外出, 4=调岗, 5=资产领用
   int? leaveType;
   DateTime startDate;
   DateTime startTime;
   DateTime endDate;
   DateTime endTime;
   String reason;
+  int? targetDeptId;
+  int? targetPositionId;
+  int? assetId;
+  DateTime? expectReturnDate;
 
   ApplicationForm({
     this.appType = 1,
@@ -15,6 +19,10 @@ class ApplicationForm {
     required this.endDate,
     required this.endTime,
     this.reason = '',
+    this.targetDeptId,
+    this.targetPositionId,
+    this.assetId,
+    this.expectReturnDate,
   });
 
   DateTime get fullStartTime => DateTime(
@@ -27,11 +35,26 @@ class ApplicationForm {
     endTime.hour, endTime.minute,
   );
 
-  Map<String, dynamic> toJson() => {
-    'appType': appType,
-    'leaveType': leaveType,
-    'startTime': fullStartTime.toIso8601String(),
-    'endTime': fullEndTime.toIso8601String(),
-    'reason': reason,
-  };
+  Map<String, dynamic> toJson() {
+    final map = <String, dynamic>{
+      'appType': appType,
+      'leaveType': appType == 1 ? leaveType : null,
+      'reason': reason,
+    };
+    if (appType >= 1 && appType <= 3) {
+      map['startTime'] = fullStartTime.toIso8601String();
+      map['endTime'] = fullEndTime.toIso8601String();
+    }
+    if (appType == 4) {
+      map['targetDeptId'] = targetDeptId;
+      map['targetPositionId'] = targetPositionId;
+    }
+    if (appType == 5) {
+      map['assetId'] = assetId;
+      if (expectReturnDate != null) {
+        map['expectReturnDate'] = expectReturnDate!.toIso8601String().split('T').first;
+      }
+    }
+    return map;
+  }
 }

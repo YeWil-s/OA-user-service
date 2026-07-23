@@ -53,6 +53,7 @@ public class ApprovalServiceImpl implements IApprovalService {
     private final UserServiceClient userServiceClient;
     private final com.oa.approval.client.NoticeServiceClient noticeServiceClient;
     private final com.oa.approval.client.AttendanceServiceClient attendanceServiceClient;
+    private final com.oa.approval.client.AssetServiceClient assetServiceClient;
     private final RedisUtils redisUtils;
 
     private static final int MSG_TYPE_APPROVAL = 1;
@@ -62,12 +63,14 @@ public class ApprovalServiceImpl implements IApprovalService {
                                UserServiceClient userServiceClient,
                                com.oa.approval.client.NoticeServiceClient noticeServiceClient,
                                com.oa.approval.client.AttendanceServiceClient attendanceServiceClient,
+                               com.oa.approval.client.AssetServiceClient assetServiceClient,
                                RedisUtils redisUtils) {
         this.appApplicationMapper = appApplicationMapper;
         this.appApprovalRecordMapper = appApprovalRecordMapper;
         this.userServiceClient = userServiceClient;
         this.noticeServiceClient = noticeServiceClient;
         this.attendanceServiceClient = attendanceServiceClient;
+        this.assetServiceClient = assetServiceClient;
         this.redisUtils = redisUtils;
     }
 
@@ -86,9 +89,19 @@ public class ApprovalServiceImpl implements IApprovalService {
         application.setDeptId(applicantDeptId);
         application.setAppType(dto.getAppType());
         application.setLeaveType(Objects.equals(dto.getAppType(), 1) ? dto.getLeaveType() : null);
-        application.setStartTime(dto.getStartTime());
-        application.setEndTime(dto.getEndTime());
-        application.setDuration(calcDuration(dto.getStartTime(), dto.getEndTime()));
+        if (dto.getAppType() >= 1 && dto.getAppType() <= 3) {
+            application.setStartTime(dto.getStartTime());
+            application.setEndTime(dto.getEndTime());
+            application.setDuration(calcDuration(dto.getStartTime(), dto.getEndTime()));
+        }
+        if (Objects.equals(dto.getAppType(), 4)) {
+            application.setTargetDeptId(dto.getTargetDeptId());
+            application.setTargetPositionId(dto.getTargetPositionId());
+        }
+        if (Objects.equals(dto.getAppType(), 5)) {
+            application.setAssetId(dto.getAssetId());
+            application.setExpectReturnDate(dto.getExpectReturnDate());
+        }
         application.setReason(dto.getReason());
         application.setAttachments(joinAttachments(dto.getAttachments()));
         application.setStatus(1);
@@ -143,6 +156,15 @@ public class ApprovalServiceImpl implements IApprovalService {
         application.setStatus(4);
         application.setCurrentApproverId(null);
         appApplicationMapper.updateById(application);
+
+        // also cancel attendance-side effects
+        if (Objects.equals(application.getAppType(), 1)) {
+            attendanceServiceClient.cancelLeave(application.getId());
+        } else if (Objects.equals(application.getAppType(), 2)) {
+            attendanceServiceClient.cancelOvertime(application.getId());
+        } else if (Objects.equals(application.getAppType(), 3)) {
+            attendanceServiceClient.cancelFieldWork(application.getId());
+        }
     }
 
     @Override
@@ -186,11 +208,37 @@ public class ApprovalServiceImpl implements IApprovalService {
 
         notifyApplicant(application);
 
-        if (Objects.equals(application.getAppType(), 1) && Integer.valueOf(2).equals(application.getStatus())) {
-            attendanceServiceClient.markLeave(application.getUserId(),
-                    application.getStartTime().toLocalDate(),
-                    application.getEndTime().toLocalDate(),
-                    application.getId());
+        if (Integer.valueOf(2).equals(application.getStatus())) {
+            if (Objects.equals(application.getAppType(), 1)) {
+                attendanceServiceClient.markLeave(application.getUserId(),
+                        application.getStartTime().toLocalDate(),
+                        application.getEndTime().toLocalDate(),
+                        application.getId());
+            } else if (Objects.equals(application.getAppType(), 2)) {
+                attendanceServiceClient.markOvertime(application.getUserId(),
+                        application.getStartTime().toLocalDate(),
+                        application.getEndTime().toLocalDate(),
+                        application.getDuration(),
+                        application.getId());
+            } else if (Objects.equals(application.getAppType(), 3)) {
+                attendanceServiceClient.markFieldWork(application.getUserId(),
+                        application.getStartTime().toLocalDate(),
+                        application.getEndTime().toLocalDate(),
+                        application.getId());
+            } else if (Objects.equals(application.getAppType(), 4)) {
+                assetServiceClient.createStaffChange(application.getUserId(),
+                        application.getTargetDeptId(),
+                        application.getTargetPositionId(),
+                        LocalDate.now(),
+                        application.getReason());
+                userServiceClient.updateEmployeeDeptPosition(application.getUserId(),
+                        application.getTargetDeptId(),
+                        application.getTargetPositionId());
+            } else if (Objects.equals(application.getAppType(), 5)) {
+                assetServiceClient.borrow(application.getAssetId(),
+                        application.getUserId(),
+                        application.getExpectReturnDate());
+            }
         }
     }
 
@@ -406,6 +454,12 @@ public class ApprovalServiceImpl implements IApprovalService {
         vo.setStartTime(application.getStartTime());
         vo.setEndTime(application.getEndTime());
         vo.setDuration(application.getDuration());
+        vo.setTargetDeptId(application.getTargetDeptId());
+        vo.setTargetDeptName(userServiceClient.getDeptName(application.getTargetDeptId()));
+        vo.setTargetPositionId(application.getTargetPositionId());
+        vo.setTargetPositionName(userServiceClient.getPositionName(application.getTargetPositionId()));
+        vo.setAssetId(application.getAssetId());
+        vo.setExpectReturnDate(application.getExpectReturnDate());
         vo.setReason(application.getReason());
         vo.setStatus(application.getStatus());
         vo.setStatusText(toStatusText(application.getStatus()));
@@ -443,24 +497,58 @@ public class ApprovalServiceImpl implements IApprovalService {
             case 1 -> "LV";
             case 2 -> "OT";
             case 3 -> "OUT";
+            case 4 -> "TR";
+            case 5 -> "AS";
             default -> "AP";
         };
         LocalDate today = LocalDate.now();
+        String datePart = today.format(NO_FORMATTER);
         String redisKey = "approval:application:no:" + prefix + ":" + today;
         Long seq = redisUtils.increment(redisKey);
         if (seq != null && seq == 1L) {
             redisUtils.expire(redisKey, Duration.ofDays(2));
         }
-        long safeSeq = seq == null ? 1L : seq;
-        return prefix + today.format(NO_FORMATTER) + String.format("%04d", safeSeq);
+        long redisSeq = seq == null ? 0L : seq;
+
+        String prefixWithDate = prefix + datePart;
+        Long maxDbSeq = appApplicationMapper.selectMaxSeqByPrefix(prefixWithDate);
+        long dbSeq = maxDbSeq == null ? 0L : maxDbSeq;
+
+        long nextSeq = Math.max(redisSeq, dbSeq + 1);
+        if (nextSeq > redisSeq) {
+            redisUtils.set(redisKey, String.valueOf(nextSeq));
+        }
+        return prefix + datePart + String.format("%04d", nextSeq);
     }
 
     private void validateSubmitDTO(ApplicationSubmitDTO dto) {
-        if (!dto.getEndTime().isAfter(dto.getStartTime())) {
-            throw new BusinessException(ResultCode.BAD_REQUEST, "结束时间必须晚于开始时间");
+        if (dto.getAppType() == null || dto.getAppType() < 1 || dto.getAppType() > 5) {
+            throw new BusinessException(ResultCode.BAD_REQUEST, "不支持的申请类型");
+        }
+        if (dto.getAppType() >= 1 && dto.getAppType() <= 3) {
+            if (dto.getStartTime() == null || dto.getEndTime() == null) {
+                throw new BusinessException(ResultCode.BAD_REQUEST, "时间类申请必须填写开始时间和结束时间");
+            }
+            if (!dto.getEndTime().isAfter(dto.getStartTime())) {
+                throw new BusinessException(ResultCode.BAD_REQUEST, "结束时间必须晚于开始时间");
+            }
         }
         if (Objects.equals(dto.getAppType(), 1) && dto.getLeaveType() == null) {
             throw new BusinessException(ResultCode.BAD_REQUEST, "请假申请必须填写请假类型");
+        }
+        if (Objects.equals(dto.getAppType(), 4)) {
+            if (dto.getTargetDeptId() == null) {
+                throw new BusinessException(ResultCode.BAD_REQUEST, "调岗申请必须填写目标部门");
+            }
+            if (dto.getTargetPositionId() == null) {
+                throw new BusinessException(ResultCode.BAD_REQUEST, "调岗申请必须填写目标岗位");
+            }
+        }
+        if (Objects.equals(dto.getAppType(), 5)) {
+            if (dto.getAssetId() == null) {
+                throw new BusinessException(ResultCode.BAD_REQUEST, "资产领用申请必须选择资产");
+            }
+            assetServiceClient.requireAvailable(dto.getAssetId());
         }
     }
 
@@ -519,6 +607,8 @@ public class ApprovalServiceImpl implements IApprovalService {
             case 1 -> "请假";
             case 2 -> "加班";
             case 3 -> "外出";
+            case 4 -> "调岗";
+            case 5 -> "资产领用";
             default -> "未知";
         };
     }

@@ -11,6 +11,7 @@ public class AttendanceRecordQueryDTO {
     @DateTimeFormat(pattern = "yyyy-MM-dd")
     private LocalDate date;
     private String month;
+    private String status;
 
     @Min(value = 1, message = "pageNum最小为1")
     private Integer pageNum = 1;
@@ -23,6 +24,8 @@ public class AttendanceRecordQueryDTO {
     public void setDate(LocalDate date) { this.date = date; }
     public String getMonth() { return month; }
     public void setMonth(String month) { this.month = month; }
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
     public Integer getPageNum() { return pageNum; }
     public void setPageNum(Integer pageNum) { this.pageNum = pageNum; }
     public Integer getPageSize() { return pageSize; }

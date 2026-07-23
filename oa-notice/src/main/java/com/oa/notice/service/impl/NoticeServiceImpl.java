@@ -19,15 +19,20 @@ import com.oa.notice.dto.UnreadCountResponse;
 import com.oa.notice.entity.Notice;
 import com.oa.notice.entity.NoticeMessage;
 import com.oa.notice.entity.NoticeReadStatus;
+import com.oa.common.remote.UserInfo;
+import com.oa.notice.client.UserServiceClient;
 import com.oa.notice.mapper.NoticeMapper;
 import com.oa.notice.mapper.NoticeMessageMapper;
 import com.oa.notice.mapper.NoticeReadStatusMapper;
 import com.oa.notice.service.INoticeService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedHashSet;
@@ -39,18 +44,23 @@ import java.util.stream.Collectors;
 @Service
 public class NoticeServiceImpl implements INoticeService {
 
+    private static final Logger log = LoggerFactory.getLogger(NoticeServiceImpl.class);
+
     private final NoticeMapper noticeMapper;
     private final NoticeReadStatusMapper readStatusMapper;
     private final NoticeMessageMapper messageMapper;
+    private final UserServiceClient userServiceClient;
 
     public NoticeServiceImpl(
             NoticeMapper noticeMapper,
             NoticeReadStatusMapper readStatusMapper,
-            NoticeMessageMapper messageMapper
+            NoticeMessageMapper messageMapper,
+            UserServiceClient userServiceClient
     ) {
         this.noticeMapper = noticeMapper;
         this.readStatusMapper = readStatusMapper;
         this.messageMapper = messageMapper;
+        this.userServiceClient = userServiceClient;
     }
 
     @Override
@@ -71,6 +81,15 @@ public class NoticeServiceImpl implements INoticeService {
         notice.setEndTime(request.getEndTime());
         notice.setStatus(defaultValue(request.getStatus(), NoticeConstants.STATUS_PUBLISHED));
         noticeMapper.insert(notice);
+
+        if (Objects.equals(notice.getStatus(), NoticeConstants.STATUS_PUBLISHED)) {
+            try {
+                fanOutMessages(notice);
+            } catch (Exception ex) {
+                log.warn("公告消息推送失败(不影响公告发布): noticeId={}, error={}", notice.getId(), ex.getMessage());
+            }
+        }
+
         return notice.getId();
     }
 
@@ -144,10 +163,19 @@ public class NoticeServiceImpl implements INoticeService {
             notice.setEndTime(request.getEndTime());
         }
         validateTimeRange(notice.getStartTime(), notice.getEndTime());
+        boolean wasNotPublished = !Objects.equals(notice.getStatus(), NoticeConstants.STATUS_PUBLISHED);
         if (request.getStatus() != null) {
             notice.setStatus(request.getStatus());
         }
         noticeMapper.updateById(notice);
+
+        if (wasNotPublished && Objects.equals(notice.getStatus(), NoticeConstants.STATUS_PUBLISHED)) {
+            try {
+                fanOutMessages(notice);
+            } catch (Exception ex) {
+                log.warn("公告消息推送失败(不影响公告更新): noticeId={}, error={}", notice.getId(), ex.getMessage());
+            }
+        }
     }
 
     @Override
@@ -245,6 +273,69 @@ public class NoticeServiceImpl implements INoticeService {
             message.setIsRead(NoticeConstants.READ_YES);
             messageMapper.updateById(message);
         }
+    }
+
+    private void fanOutMessages(Notice notice) {
+        List<Long> targetUserIds = resolveTargetUserIds(notice);
+        if (targetUserIds.isEmpty()) {
+            log.info("公告发布，无目标用户可推送消息: noticeId={}", notice.getId());
+            return;
+        }
+        int msgType = NoticeConstants.MSG_TYPE_SYSTEM;
+        LocalDateTime now = LocalDateTime.now();
+        String title = "[公告] " + notice.getTitle();
+        String content = defaultString(notice.getContent(), "");
+
+        int count = 0;
+        for (Long userId : targetUserIds) {
+            try {
+                NoticeMessage message = new NoticeMessage();
+                message.setUserId(userId);
+                message.setTitle(title);
+                message.setContent(content);
+                message.setMsgType(msgType);
+                message.setRelatedId(notice.getId());
+                message.setIsRead(NoticeConstants.READ_NO);
+                message.setCreateTime(now);
+                messageMapper.insert(message);
+                count++;
+            } catch (Exception ex) {
+                log.warn("单条消息写入失败: noticeId={}, userId={}, error={}", notice.getId(), userId, ex.getMessage());
+            }
+        }
+        log.info("公告消息推送完成: noticeId={}, targetCount={}, successCount={}", notice.getId(), targetUserIds.size(), count);
+    }
+
+    private List<Long> resolveTargetUserIds(Notice notice) {
+        Integer targetType = notice.getTargetType();
+        Set<Long> targetIds = parseTargetIds(notice.getTargetIds());
+
+        if (Objects.equals(targetType, NoticeConstants.TARGET_USER)) {
+            return new ArrayList<>(targetIds);
+        }
+
+        if (Objects.equals(targetType, NoticeConstants.TARGET_DEPT)) {
+            Set<Long> userIds = new LinkedHashSet<>();
+            for (Long deptId : targetIds) {
+                Set<Long> deptAndChildren = userServiceClient.collectDeptAndChildren(deptId);
+                for (Long resolvedDeptId : deptAndChildren) {
+                    List<UserInfo> users = userServiceClient.listUsersByDept(resolvedDeptId);
+                    for (UserInfo user : users) {
+                        if (user.isActive()) {
+                            userIds.add(user.getId());
+                        }
+                    }
+                }
+            }
+            return new ArrayList<>(userIds);
+        }
+
+        List<UserInfo> allUsers = userServiceClient.listAllActiveUsers();
+        return allUsers.stream().map(UserInfo::getId).collect(Collectors.toList());
+    }
+
+    private String defaultString(String value, String fallback) {
+        return StringUtils.hasText(value) ? value : fallback;
     }
 
     private Notice findNotice(Long id) {

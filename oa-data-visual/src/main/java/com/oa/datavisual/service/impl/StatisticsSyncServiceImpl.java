@@ -80,6 +80,12 @@ public class StatisticsSyncServiceImpl implements IStatisticsSyncService {
         List<StatApprovalSummary> approvalRecords = extractMapper.selectApprovalSummary(
                 statMonthText, startTime, endTime);
 
+        int totalExtracted = deptOverviews.size() + attendanceRecords.size() + approvalRecords.size();
+        if (totalExtracted == 0) {
+            log.warn("统计数据提取为空, 跳过同步以免覆盖已有数据: month={}", statMonthText);
+            return new StatisticsSyncResponse(statMonthText, 0, 0, 0, LocalDateTime.now());
+        }
+
         deleteMonth(statMonthText);
         deptOverviews.forEach(deptOverviewMapper::insert);
         attendanceRecords.forEach(attendanceMapper::insert);

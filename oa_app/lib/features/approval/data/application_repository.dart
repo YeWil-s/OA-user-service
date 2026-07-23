@@ -106,4 +106,27 @@ class ApplicationRepository {
       data: {'approved': approved, 'comment': comment},
     );
   }
+
+  // ---- 参考数据（调岗/资产领用） ----
+
+  Future<List<Map<String, dynamic>>> getDepts() async {
+    final res = await _dio.get(ApiConstants.depts);
+    // depts 返回的是普通列表，不是分页对象
+    final list = res.data['data'] as List<dynamic>? ?? [];
+    return list.cast<Map<String, dynamic>>();
+  }
+
+  Future<List<Map<String, dynamic>>> getPositions() async {
+    final res = await _dio.get(ApiConstants.positions, queryParameters: {'pageSize': 100});
+    final data = res.data['data'] as Map<String, dynamic>?;
+    final records = data?['records'] as List<dynamic>? ?? [];
+    return records.cast<Map<String, dynamic>>();
+  }
+
+  Future<List<Map<String, dynamic>>> getAvailableAssets() async {
+    final res = await _dio.get(ApiConstants.assets, queryParameters: {'pageSize': 100, 'status': 1});
+    final data = res.data['data'] as Map<String, dynamic>?;
+    final records = data?['records'] as List<dynamic>? ?? [];
+    return records.cast<Map<String, dynamic>>();
+  }
 }

@@ -258,14 +258,12 @@ INSERT INTO sys_menu (id, parent_id, menu_name, menu_type, path, component, perm
 
 -- 资产管理子菜单
 INSERT INTO sys_menu (id, parent_id, menu_name, menu_type, path, component, permission_code, icon, sort_order) VALUES
-(51, 5, '资产列表',   2, 'list',       'asset/list',        'asset:list',          'Goods',       1),
-(52, 5, '领用记录',   2, 'borrow',     'asset/borrow',      'asset:borrow',        'ShoppingCart',2),
-(53, 5, '人事变动',   2, 'staff-change','asset/staff-change','asset:staff',         'Connection',  3);
+(51, 5, '资产台账',   2, 'assets',     'asset/assets',      'asset:list',          'Package',     1),
+(52, 5, '人事变动',   2, 'staff',      'asset/staff',       'asset:staff',         'Connection',  2);
 
 -- AI助手子菜单
 INSERT INTO sys_menu (id, parent_id, menu_name, menu_type, path, component, permission_code, icon, sort_order) VALUES
-(61, 6, 'AI对话',     2, 'chat',       'ai/chat',           'ai:chat',             'ChatDotRound', 1),
-(62, 6, 'AI分析',     2, 'analysis',   'ai/analysis',       'ai:analysis',         'TrendCharts',  2);
+(61, 6, 'AI助手',     2, 'assistant',  'ai/assistant',      'ai:assistant',        'Bot',         1);
 
 -- 数据大屏子菜单
 INSERT INTO sys_menu (id, parent_id, menu_name, menu_type, path, component, permission_code, icon, sort_order) VALUES
@@ -304,7 +302,7 @@ INSERT INTO sys_role_menu (role_id, menu_id) VALUES
 (2, 2), (2, 21), (2, 22), (2, 23),    -- 考勤管理(全)
 (2, 3), (2, 31), (2, 32), (2, 33), (2, 34),  -- 审批管理(全)
 (2, 4), (2, 41), (2, 42),             -- 公告通知
-(2, 5), (2, 51), (2, 52), (2, 53),    -- 资产管理(全)
+(2, 5), (2, 51), (2, 52),             -- 资产管理(全)
 (2, 7), (2, 71), (2, 72);             -- 数据大屏+报表
 
 

@@ -1,5 +1,6 @@
 package com.oa.asset.service;
 
+import com.oa.asset.client.UserDirectoryClient;
 import com.oa.asset.dto.EmployeeArchiveDTO;
 import com.oa.asset.dto.StaffChangeDTO;
 import com.oa.asset.entity.EmployeeArchive;
@@ -7,6 +8,7 @@ import com.oa.asset.entity.StaffChange;
 import com.oa.asset.mapper.EmployeeArchiveMapper;
 import com.oa.asset.mapper.StaffChangeMapper;
 import com.oa.asset.service.impl.StaffServiceImpl;
+import com.oa.asset.service.UserDirectoryService;
 import com.oa.common.exception.BusinessException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -27,10 +29,16 @@ import static org.mockito.Mockito.*;
 class StaffServiceImplTest {
     @Mock private EmployeeArchiveMapper archiveMapper;
     @Mock private StaffChangeMapper changeMapper;
+    @Mock private UserDirectoryService userDirectoryService;
+    @Mock private UserDirectoryClient userDirectoryClient;
+    @Mock private com.oa.asset.client.NoticeServiceClient noticeServiceClient;
     private StaffServiceImpl service;
 
     @BeforeEach
-    void setUp() { service = new StaffServiceImpl(archiveMapper, changeMapper); }
+    void setUp() {
+        service = new StaffServiceImpl(archiveMapper, changeMapper,
+                userDirectoryService, userDirectoryClient, noticeServiceClient);
+    }
 
     @Test
     @DisplayName("员工没有档案时新增档案")
@@ -93,6 +101,10 @@ class StaffServiceImplTest {
     @Test
     @DisplayName("新增人事变动时复制业务字段并设置创建时间")
     void createChangePersistsRecord() {
+        UserDirectoryClient.EmployeeRef emp = new UserDirectoryClient.EmployeeRef();
+        emp.setDeptId(1L); emp.setPositionId(1L);
+        when(userDirectoryService.requireEmployee(7L)).thenReturn(emp);
+
         StaffChangeDTO dto = changeDto();
         service.createChange(dto);
         ArgumentCaptor<StaffChange> captor = ArgumentCaptor.forClass(StaffChange.class);

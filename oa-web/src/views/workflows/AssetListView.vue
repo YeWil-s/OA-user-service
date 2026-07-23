@@ -161,7 +161,7 @@ async function handleAssetSave() {
 
 async function handleScrap(id: number) {
   if (!confirm('确定报废该资产？')) return
-  await assetApi.scrapAsset(id)
+  await assetApi.deleteAsset(id)
   fetchData(pageNum.value)
 }
 

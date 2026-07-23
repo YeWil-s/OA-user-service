@@ -214,13 +214,14 @@ CREATE TABLE user_shift (
 -- 每日排班表
 DROP TABLE IF EXISTS att_schedule;
 CREATE TABLE att_schedule (
-    id            BIGINT   NOT NULL AUTO_INCREMENT COMMENT '主键',
-    user_id       BIGINT   NOT NULL             COMMENT '员工ID',
-    schedule_date DATE     NOT NULL             COMMENT '排班日期',
-    shift_id      BIGINT   NOT NULL             COMMENT '班次ID',
-    status        TINYINT  DEFAULT 1            COMMENT '1=正常 2=请假',
-    create_time   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    update_time   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    id             BIGINT   NOT NULL AUTO_INCREMENT COMMENT '主键',
+    user_id        BIGINT   NOT NULL             COMMENT '员工ID',
+    schedule_date  DATE     NOT NULL             COMMENT '排班日期',
+    shift_id       BIGINT   NOT NULL             COMMENT '班次ID',
+    status         TINYINT  DEFAULT 1            COMMENT '1=正常 2=请假',
+    overtime_hours DECIMAL(4,1) NOT NULL DEFAULT 0 COMMENT '加班小时数(审批通过后写入)',
+    create_time    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    update_time    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     UNIQUE KEY uk_user_date (user_id, schedule_date)
 ) ENGINE=InnoDB COMMENT='每日排班表';
@@ -237,11 +238,15 @@ CREATE TABLE app_application (
     application_no      VARCHAR(50)  NOT NULL             COMMENT '申请单号(如 LV20260720001)',
     user_id             BIGINT       NOT NULL             COMMENT '申请人ID',
     dept_id             BIGINT       NOT NULL             COMMENT '申请人部门ID',
-    app_type            TINYINT      NOT NULL             COMMENT '申请类型: 1=请假, 2=加班, 3=外出',
+    app_type            TINYINT      NOT NULL             COMMENT '申请类型: 1=请假, 2=加班, 3=外出, 4=调岗, 5=资产领用',
     leave_type          TINYINT      DEFAULT NULL         COMMENT '请假子类型: 1=年假, 2=事假, 3=病假, 4=婚假, 5=产假(仅app_type=1时有效)',
-    start_time          DATETIME     NOT NULL             COMMENT '开始时间',
-    end_time            DATETIME     NOT NULL             COMMENT '结束时间',
-    duration            DECIMAL(5,1) NOT NULL             COMMENT '时长(天/小时)',
+    start_time          DATETIME     DEFAULT NULL         COMMENT '开始时间(app_type=1/2/3时必填)',
+    end_time            DATETIME     DEFAULT NULL         COMMENT '结束时间(app_type=1/2/3时必填)',
+    duration            DECIMAL(5,1) DEFAULT NULL         COMMENT '时长(天/小时, app_type=1/2/3时必填)',
+    target_dept_id      BIGINT       DEFAULT NULL         COMMENT '目标部门ID(app_type=4时)',
+    target_position_id  BIGINT       DEFAULT NULL         COMMENT '目标岗位ID(app_type=4时)',
+    asset_id            BIGINT       DEFAULT NULL         COMMENT '资产ID(app_type=5时)',
+    expect_return_date  DATE         DEFAULT NULL         COMMENT '预计归还日期(app_type=5时)',
     reason              VARCHAR(500) DEFAULT NULL         COMMENT '申请原因',
     attachments         VARCHAR(500) DEFAULT NULL         COMMENT '附件URL,逗号分隔',
     status              TINYINT      NOT NULL DEFAULT 0   COMMENT '状态: 0=草稿, 1=审批中, 2=已通过, 3=已驳回, 4=已撤销',
@@ -564,12 +569,10 @@ INSERT INTO sys_menu (id, parent_id, menu_name, menu_type, path, component, perm
 (41, 4, '公告列表',   2, 'list',       'notice/list',       'notice:list',       'Notebook', 1),
 (42, 4, '消息中心',   2, 'message',    'notice/message',    'notice:message',    'ChatLineSquare', 2),
 -- 资产管理子菜单
-(51, 5, '资产列表',   2, 'list',       'asset/list',        'asset:list',        'Goods',    1),
-(52, 5, '领用记录',   2, 'borrow',     'asset/borrow',      'asset:borrow',      'ShoppingCart', 2),
-(53, 5, '人事变动',   2, 'staff-change','asset/staff-change','asset:staff',       'Connection', 3),
+(51, 5, '资产台账',   2, 'assets',     'asset/assets',      'asset:list',        'Package',   1),
+(52, 5, '人事变动',   2, 'staff',      'asset/staff',       'asset:staff',       'Connection', 2),
 -- AI助手子菜单
-(61, 6, 'AI对话',     2, 'chat',       'ai/chat',           'ai:chat',           'ChatDotRound', 1),
-(62, 6, 'AI分析',     2, 'analysis',   'ai/analysis',       'ai:analysis',       'TrendCharts', 2),
+(61, 6, 'AI助手',     2, 'assistant',  'ai/assistant',      'ai:assistant',      'Bot',         1),
 -- 数据大屏子菜单
 (71, 7, '数据大屏',   2, 'screen',     'visual/screen',     'visual:screen',     'Monitor',   1),
 (72, 7, '数据报表',   2, 'reports',    'visual/reports',    'visual:reports',    'DataLine',  2);

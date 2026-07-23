@@ -37,4 +37,6 @@ public interface ISysUserService extends IService<SysUser> {
     List<String> getUserPermissions(Long userId);
 
     List<SysUser> listByDeptId(Long deptId);
+
+    void updateEmployeeDeptPosition(Long id, Long deptId, Long positionId);
 }

@@ -30,7 +30,6 @@ export const routes: RouteRecordRaw[] = [
       { path: 'approval/processed', name: 'approval-processed', component: () => import('@/views/workflows/ModuleListView.vue'), meta: { title: '已办审批', module: 'applications' } },
       { path: 'asset/assets', name: 'asset-assets', component: () => import('@/views/workflows/ModuleListView.vue'), meta: { title: '资产台账', module: 'assets' } },
       { path: 'asset/staff', name: 'asset-staff', component: () => import('@/views/workflows/StaffChangeView.vue'), meta: { title: '人事变动' } },
-      { path: 'asset/contracts', name: 'asset-contracts', component: () => import('@/views/workflows/ContractView.vue'), meta: { title: '合同管理' } },
       { path: 'ai/assistant', name: 'ai-assistant', component: () => import('@/views/workflows/AiAssistantView.vue'), meta: { title: 'AI 助手' } }
     ]
   },

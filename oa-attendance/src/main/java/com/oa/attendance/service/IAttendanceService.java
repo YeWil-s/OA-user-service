@@ -2,7 +2,9 @@ package com.oa.attendance.service;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.oa.attendance.dto.AttendanceRecordQueryDTO;
+import com.oa.attendance.dto.FieldWorkDTO;
 import com.oa.attendance.dto.LeaveDTO;
+import com.oa.attendance.dto.OvertimeDTO;
 import com.oa.attendance.dto.PunchDTO;
 import com.oa.attendance.dto.ScheduleItem;
 import com.oa.attendance.dto.ShiftDTO;
@@ -45,6 +47,14 @@ public interface IAttendanceService {
     void markLeave(LeaveDTO dto);
 
     void cancelLeave(Long applicationId);
+
+    void markOvertime(OvertimeDTO dto);
+
+    void cancelOvertime(Long applicationId);
+
+    void markFieldWork(FieldWorkDTO dto);
+
+    void cancelFieldWork(Long applicationId);
 
     List<ScheduleVO> mySchedules(LocalDate startDate, LocalDate endDate);
 

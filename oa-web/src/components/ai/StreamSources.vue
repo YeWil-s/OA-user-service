@@ -16,7 +16,7 @@ withDefaults(defineProps<{ sources?: Source[]; loading?: boolean }>(), {
 <template>
   <div class="source-list">
     <template v-if="loading">
-      <article v-for="index in 3" :key="index" class="source-item source-skeleton">
+      <article v-for="n in 3" :key="n" class="source-item source-skeleton">
         <span class="skeleton wide" />
         <span class="skeleton medium" />
         <span class="skeleton short" />
@@ -49,16 +49,15 @@ withDefaults(defineProps<{ sources?: Source[]; loading?: boolean }>(), {
   gap: 8px;
   padding: 12px;
   overflow: hidden;
-  border: 1px solid rgba(148, 163, 184, 0.13);
+  border: 1px solid var(--border);
   border-radius: 7px;
-  background: linear-gradient(145deg, rgba(30, 41, 59, 0.58), rgba(15, 23, 42, 0.38));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+  background: var(--surface-soft);
   transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
 .source-item:hover {
-  border-color: rgba(34, 211, 238, 0.24);
-  box-shadow: 0 10px 24px rgba(2, 6, 23, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.055);
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow);
   transform: translateY(-2px);
 }
 
@@ -71,7 +70,7 @@ withDefaults(defineProps<{ sources?: Source[]; loading?: boolean }>(), {
 
 .source-heading strong {
   overflow: hidden;
-  color: #e7eefb;
+  color: var(--text);
   font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -82,15 +81,15 @@ withDefaults(defineProps<{ sources?: Source[]; loading?: boolean }>(), {
   height: 7px;
   flex: 0 0 7px;
   border-radius: 2px;
-  background: #22d3ee;
-  box-shadow: 0 0 10px rgba(34, 211, 238, 0.7);
+  background: var(--primary-soft);
+  box-shadow: 0 0 8px var(--primary-glow);
 }
 
 .source-item p {
   display: -webkit-box;
   margin: 0;
   overflow: hidden;
-  color: #8494aa;
+  color: var(--muted);
   font-size: 11px;
   line-height: 1.6;
   -webkit-box-orient: vertical;
@@ -101,33 +100,30 @@ withDefaults(defineProps<{ sources?: Source[]; loading?: boolean }>(), {
   width: max-content;
   padding: 3px 7px;
   border-radius: 4px;
-  background: rgba(34, 211, 238, 0.08);
-  color: #67e8f9;
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
+  color: var(--primary-soft);
   font-size: 9px;
   font-variant-numeric: tabular-nums;
 }
 
 .empty-source {
-  min-height: 148px;
+  min-height: 120px;
   display: grid;
   place-items: center;
   align-content: center;
-  gap: 12px;
-  color: #64748b;
+  gap: 10px;
+  color: var(--faint);
   text-align: center;
 }
 
-.empty-source p {
-  margin: 0;
-  font-size: 11px;
-}
+.empty-source p { margin: 0; font-size: 11px; }
 
 .empty-orbit {
-  width: 30px;
-  height: 30px;
-  border: 1px solid rgba(34, 211, 238, 0.25);
+  width: 28px;
+  height: 28px;
+  border: 1px solid color-mix(in srgb, var(--primary-soft) 22%, transparent);
   border-radius: 50%;
-  box-shadow: 0 0 0 7px rgba(59, 130, 246, 0.04), 0 0 20px rgba(34, 211, 238, 0.08);
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--primary) 4%, transparent), 0 0 16px var(--primary-glow);
 }
 
 .skeleton {
@@ -135,13 +131,13 @@ withDefaults(defineProps<{ sources?: Source[]; loading?: boolean }>(), {
   height: 9px;
   overflow: hidden;
   border-radius: 999px;
-  background: rgba(148, 163, 184, 0.1);
+  background: color-mix(in srgb, var(--muted) 12%, transparent);
 }
 
 .skeleton::after {
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, transparent, rgba(125, 211, 252, 0.24), transparent);
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--primary) 22%, transparent), transparent);
   content: "";
   transform: translateX(-100%);
   animation: source-shimmer 1.35s infinite;
@@ -150,14 +146,11 @@ withDefaults(defineProps<{ sources?: Source[]; loading?: boolean }>(), {
 .wide { width: 90%; }
 .medium { width: 67%; }
 .short { width: 42%; }
-.source-skeleton { min-height: 94px; }
+.source-skeleton { min-height: 88px; }
 
-@keyframes source-shimmer {
-  to { transform: translateX(100%); }
-}
+@keyframes source-shimmer { to { transform: translateX(100%); } }
 
 @media (prefers-reduced-motion: reduce) {
-  .source-item,
-  .skeleton::after { animation: none; transition: none; }
+  .source-item, .skeleton::after { animation: none; transition: none; }
 }
 </style>

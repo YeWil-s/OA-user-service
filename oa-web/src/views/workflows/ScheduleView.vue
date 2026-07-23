@@ -175,6 +175,7 @@ const masterRows = computed(() => {
                   {{ getSched(day.dateStr)!.shiftName }}
                 </div>
                 <div class="shift-time">{{ getSched(day.dateStr)!.startTime?.substring(0, 5) }} - {{ getSched(day.dateStr)!.endTime?.substring(0, 5) }}</div>
+                <div v-if="getSched(day.dateStr)!.overtimeHours > 0" class="overtime-badge">加班 {{ getSched(day.dateStr)!.overtimeHours }}h</div>
                 <div v-if="getSched(day.dateStr)!.statusText" class="default-tag">{{ getSched(day.dateStr)!.statusText }}</div>
               </template>
             </template>
@@ -205,7 +206,7 @@ const masterRows = computed(() => {
             <td class="td-name">{{ row.person.userName }}</td>
             <td v-for="(s, idx) in row.cells" :key="masterDays[idx].dateStr" :class="{ today: isToday(masterDays[idx].date), wkend: isWeekend(masterDays[idx].date) }">
               <span v-if="s?.status === 2" class="leave-cell">请假</span>
-              <span v-else-if="s" class="sched-pill" :style="{ background: shiftColor(s.shiftName) + '14', color: shiftColor(s.shiftName) }">{{ s.shiftName }}</span>
+              <span v-else-if="s" class="sched-pill" :style="{ background: shiftColor(s.shiftName) + '14', color: shiftColor(s.shiftName) }">{{ s.shiftName }}<span v-if="s.overtimeHours > 0" class="ot-dot" title="加班 {{ s.overtimeHours }}h"></span></span>
               <span v-else class="none-cell">-</span>
             </td>
           </tr>
@@ -279,6 +280,8 @@ const masterRows = computed(() => {
 .shift-tag { padding: 3px 10px; border-radius: 20px; font-size: 13px; font-weight: 700; border: 1px solid; }
 .shift-time { font-size: 11px; color: var(--text-muted); }
 .leave-badge { background: #fecaca; color: #991b1b; padding: 4px 14px; border-radius: 20px; font-size: 13px; font-weight: 600; }
+.overtime-badge { background: #fef3c7; color: #92400e; padding: 2px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+.ot-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #f59e0b; margin-left: 4px; vertical-align: middle; }
 .default-tag { font-size: 10px; color: var(--text-muted); background: var(--bg-subtle); padding: 1px 7px; border-radius: 8px; }
 .cell-foot { margin-top: auto; }
 .edit-btn { padding: 3px 12px; border-radius: 6px; border: 1px solid var(--border-color); background: transparent; cursor: pointer; font-size: 11px; color: var(--text-secondary); }

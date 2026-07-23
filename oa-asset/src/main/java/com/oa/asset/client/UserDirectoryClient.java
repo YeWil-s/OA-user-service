@@ -24,10 +24,13 @@ public interface UserDirectoryClient {
     @GetMapping("/positions")
     Result<PageRef<PositionRef>> positions(@RequestParam("pageNum") int pageNum,
                                            @RequestParam("pageSize") int pageSize,
-                                           @RequestParam("deptId") Long deptId);
+                                           @RequestParam(value = "deptId", required = false) Long deptId);
 
     @PutMapping("/employees/{id}")
     Result<Void> updateEmployee(@PathVariable("id") Long id, @RequestBody Map<String, Object> body);
+
+    @PutMapping("/internal/employees/{id}/dept-position")
+    Result<Void> updateDeptPosition(@PathVariable("id") Long id, @RequestBody Map<String, Object> body);
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     class EmployeeRef {
@@ -35,6 +38,8 @@ public interface UserDirectoryClient {
         private Long deptId;
         private Long positionId;
         private Integer status;
+        private String realName;
+        private String username;
         public Long getId() { return id; }
         public void setId(Long id) { this.id = id; }
         public Long getDeptId() { return deptId; }
@@ -43,14 +48,21 @@ public interface UserDirectoryClient {
         public void setPositionId(Long positionId) { this.positionId = positionId; }
         public Integer getStatus() { return status; }
         public void setStatus(Integer status) { this.status = status; }
+        public String getRealName() { return realName; }
+        public void setRealName(String realName) { this.realName = realName; }
+        public String getUsername() { return username; }
+        public void setUsername(String username) { this.username = username; }
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     class DeptRef {
         private Long id;
+        private String deptName;
         private List<DeptRef> children;
         public Long getId() { return id; }
         public void setId(Long id) { this.id = id; }
+        public String getDeptName() { return deptName; }
+        public void setDeptName(String deptName) { this.deptName = deptName; }
         public List<DeptRef> getChildren() { return children; }
         public void setChildren(List<DeptRef> children) { this.children = children; }
     }
@@ -59,10 +71,13 @@ public interface UserDirectoryClient {
     class PositionRef {
         private Long id;
         private Long deptId;
+        private String positionName;
         public Long getId() { return id; }
         public void setId(Long id) { this.id = id; }
         public Long getDeptId() { return deptId; }
         public void setDeptId(Long deptId) { this.deptId = deptId; }
+        public String getPositionName() { return positionName; }
+        public void setPositionName(String positionName) { this.positionName = positionName; }
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

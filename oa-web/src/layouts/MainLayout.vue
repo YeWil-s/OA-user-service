@@ -219,10 +219,10 @@ onMounted(async () => {
   overflow: hidden;
   border-right: 1px solid var(--border);
   background:
-    linear-gradient(180deg, color-mix(in srgb, var(--primary) 7%, transparent), transparent 34%),
+    linear-gradient(180deg, color-mix(in srgb, var(--primary) 5%, transparent), transparent 34%),
     var(--sidebar);
-  color: #dce5f2;
-  box-shadow: 12px 0 36px rgba(0, 0, 0, 0.12), inset -1px 0 0 rgba(255, 255, 255, 0.025);
+  color: var(--text);
+  box-shadow: 8px 0 32px rgba(0, 0, 0, 0.06), inset -1px 0 0 rgba(128, 160, 210, 0.08);
   backdrop-filter: blur(16px) saturate(120%);
 }
 
@@ -266,7 +266,7 @@ onMounted(async () => {
 
 .brand span {
   margin-top: 4px;
-  color: #8798b0;
+  color: var(--muted);
   font-size: 10px;
   text-transform: uppercase;
 }
@@ -278,17 +278,17 @@ onMounted(async () => {
   display: grid;
   place-items: center;
   margin-left: auto;
-  border: 1px solid rgba(255, 255, 255, 0.09);
+  border: 1px solid var(--border);
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.05);
-  color: #aab8ca;
+  background: var(--surface-soft);
+  color: var(--muted);
   cursor: pointer;
   transition: transform 0.14s ease, background-color 0.18s ease, color 0.18s ease;
 }
 
 .collapse-button:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
+  background: var(--surface);
+  color: var(--primary-soft);
 }
 
 .collapse-button:active {
@@ -311,7 +311,7 @@ onMounted(async () => {
   height: 20px;
   margin: 16px 10px 7px;
   overflow: hidden;
-  color: #73849c;
+  color: var(--faint);
   font-size: 10px;
   font-weight: 740;
   text-transform: uppercase;
@@ -329,7 +329,7 @@ onMounted(async () => {
   padding: 0 12px;
   border: 1px solid transparent;
   border-radius: 7px;
-  color: #b7c4d5;
+  color: var(--muted);
   font-size: 13px;
   font-weight: 650;
   white-space: nowrap;
@@ -349,9 +349,9 @@ onMounted(async () => {
 }
 
 .nav-link:hover {
-  border-color: rgba(96, 165, 250, 0.14);
-  background: linear-gradient(90deg, rgba(59, 130, 246, 0.12), rgba(139, 92, 246, 0.06));
-  color: #fff;
+  border-color: color-mix(in srgb, var(--primary-soft) 18%, transparent);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--primary) 14%, transparent), color-mix(in srgb, var(--accent) 8%, transparent));
+  color: var(--text);
   transform: translateX(4px) scale(1.02);
 }
 
@@ -366,14 +366,14 @@ onMounted(async () => {
 }
 
 .nav-link.router-link-active {
-  border-color: rgba(96, 165, 250, 0.22);
-  background: linear-gradient(90deg, rgba(59, 130, 246, 0.22), rgba(139, 92, 246, 0.12));
-  color: #fff;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 8px 24px rgba(37, 99, 235, 0.1);
+  border-color: color-mix(in srgb, var(--primary-soft) 26%, transparent);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--primary) 24%, transparent), color-mix(in srgb, var(--accent) 14%, transparent));
+  color: var(--text);
+  box-shadow: inset 0 1px 0 rgba(128, 180, 230, 0.12), 0 8px 24px rgba(37, 99, 235, 0.08);
 }
 
 .nav-link.router-link-active::before {
-  background: linear-gradient(180deg, var(--cyan), var(--violet));
+  background: linear-gradient(180deg, var(--cyan), var(--primary));
   box-shadow: 0 0 16px rgba(6, 182, 212, 0.46);
 }
 
@@ -630,7 +630,7 @@ onMounted(async () => {
   }
 
   .mobile-nav a.router-link-active {
-    background: linear-gradient(145deg, color-mix(in srgb, var(--primary) 16%, transparent), color-mix(in srgb, var(--violet) 10%, transparent));
+    background: linear-gradient(145deg, color-mix(in srgb, var(--primary) 16%, transparent), color-mix(in srgb, var(--accent) 10%, transparent));
     color: var(--primary-soft);
   }
 

@@ -115,7 +115,7 @@ class _AppCard extends StatelessWidget {
   final VoidCallback onTap;
   const _AppCard({required this.app, required this.onTap});
 
-  static const _typeIcons = {1: Icons.beach_access, 2: Icons.timer, 3: Icons.airplanemode_active};
+  static const _typeIcons = {1: Icons.beach_access, 2: Icons.timer, 3: Icons.airplanemode_active, 4: Icons.swap_horiz, 5: Icons.inventory_2};
   static const _statusColors = {'approved': Color(0xFF2E7D32), 'pending': Color(0xFFE65100), 'rejected': Color(0xFFC62828), 'cancelled': Color(0xFF757575)};
 
   @override

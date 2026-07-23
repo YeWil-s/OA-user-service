@@ -18,6 +18,7 @@ public class AttSchedule {
     private LocalDate scheduleDate;
     private Long shiftId;
     private Integer status;
+    private java.math.BigDecimal overtimeHours;
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
     @TableField(fill = FieldFill.INSERT_UPDATE)
@@ -33,6 +34,8 @@ public class AttSchedule {
     public void setShiftId(Long shiftId) { this.shiftId = shiftId; }
     public Integer getStatus() { return status; }
     public void setStatus(Integer status) { this.status = status; }
+    public java.math.BigDecimal getOvertimeHours() { return overtimeHours; }
+    public void setOvertimeHours(java.math.BigDecimal overtimeHours) { this.overtimeHours = overtimeHours; }
     public LocalDateTime getCreateTime() { return createTime; }
     public void setCreateTime(LocalDateTime createTime) { this.createTime = createTime; }
     public LocalDateTime getUpdateTime() { return updateTime; }

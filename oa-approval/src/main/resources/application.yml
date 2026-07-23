@@ -41,6 +41,8 @@ oa:
     base-url: http://oa-notice-service
   attendance-service:
     base-url: http://oa-attendance-service
+  asset-service:
+    base-url: http://oa-asset-service
 
 knife4j:
   enable: true

@@ -171,7 +171,7 @@ const deptOption = computed(() => ({
       type: 'pie',
       radius: ['46%', '72%'],
       data: depts.value.map((item) => ({ name: item.deptName, value: item.value })),
-      color: ['#3b82f6', '#8b5cf6', '#06b6d4', '#22c55e', '#ec4899']
+      color: ['#3b82f6', '#0ea5e9', '#06b6d4', '#22c55e', '#6366f1']
     }
   ]
 }))
@@ -307,7 +307,7 @@ onMounted(load)
 }
 
 .quick-link:hover {
-  border-color: #aeb9c8;
+  border-color: var(--primary-soft);
 }
 
 @media (max-width: 640px) {

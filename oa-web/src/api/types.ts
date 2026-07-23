@@ -190,6 +190,7 @@ export interface Schedule {
   endTime: string
   status: number
   statusText?: string
+  overtimeHours?: number
 }
 
 export interface UserShift {
@@ -245,9 +246,17 @@ export interface ApprovalApplication {
   appTypeText?: string
   leaveType?: number
   leaveTypeText?: string
-  startTime: string
-  endTime: string
+  startTime?: string
+  endTime?: string
   duration?: number
+  targetDeptId?: number
+  targetDeptName?: string
+  targetPositionId?: number
+  targetPositionName?: string
+  assetId?: number
+  assetName?: string
+  assetCode?: string
+  expectReturnDate?: string
   reason?: string
   status: number
   statusText?: string

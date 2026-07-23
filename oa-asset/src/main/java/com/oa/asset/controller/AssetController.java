@@ -41,6 +41,7 @@ public class AssetController {
     @DeleteMapping("/assets/{id}") public Result<Void> scrap(@PathVariable Long id) { service.scrap(id); return Result.success(); }
     @PostMapping("/borrow") public Result<AssetRecord> borrow(@Valid @RequestBody BorrowDTO dto) { return Result.success(service.borrow(dto)); }
     @PutMapping("/borrow/{id}/return") public Result<Void> returnAsset(@PathVariable Long id) { service.returnAsset(id); return Result.success(); }
+    @PostMapping("/internal/borrow") public Result<AssetRecord> borrowInternal(@Valid @RequestBody BorrowDTO dto) { return Result.success(service.borrow(dto)); }
     @GetMapping("/records")
     public Result<IPage<AssetRecord>> records(@RequestParam(defaultValue = "1") @Min(1) int pageNum,
             @RequestParam(defaultValue = "10") @Min(1) @Max(100) int pageSize,

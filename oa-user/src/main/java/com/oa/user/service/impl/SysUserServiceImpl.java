@@ -211,6 +211,18 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
 
     @Override
     @Transactional
+    public void updateEmployeeDeptPosition(Long id, Long deptId, Long positionId) {
+        SysUser user = this.getById(id);
+        if (user == null) {
+            throw new BusinessException(ResultCode.USER_NOT_FOUND);
+        }
+        user.setDeptId(deptId);
+        user.setPositionId(positionId);
+        this.updateById(user);
+    }
+
+    @Override
+    @Transactional
     public void deleteEmployee(Long id) {
         SysUser user = this.getById(id);
         if (user == null) {

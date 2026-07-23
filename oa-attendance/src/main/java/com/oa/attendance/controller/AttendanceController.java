@@ -2,7 +2,9 @@ package com.oa.attendance.controller;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.oa.attendance.dto.AttendanceRecordQueryDTO;
+import com.oa.attendance.dto.FieldWorkDTO;
 import com.oa.attendance.dto.LeaveDTO;
+import com.oa.attendance.dto.OvertimeDTO;
 import com.oa.attendance.dto.PunchDTO;
 import com.oa.attendance.dto.ScheduleDTO;
 import com.oa.attendance.dto.ShiftDTO;
@@ -131,6 +133,34 @@ public class AttendanceController {
     @DeleteMapping("/leave/{applicationId}")
     public Result<Void> cancelLeave(@PathVariable Long applicationId) {
         attendanceService.cancelLeave(applicationId);
+        return Result.success();
+    }
+
+    @Operation(summary = "批量标记加班")
+    @PostMapping("/overtime")
+    public Result<Void> markOvertime(@Valid @RequestBody OvertimeDTO dto) {
+        attendanceService.markOvertime(dto);
+        return Result.success();
+    }
+
+    @Operation(summary = "取消加班标记")
+    @DeleteMapping("/overtime/{applicationId}")
+    public Result<Void> cancelOvertime(@PathVariable Long applicationId) {
+        attendanceService.cancelOvertime(applicationId);
+        return Result.success();
+    }
+
+    @Operation(summary = "批量标记外勤")
+    @PostMapping("/fieldwork")
+    public Result<Void> markFieldWork(@Valid @RequestBody FieldWorkDTO dto) {
+        attendanceService.markFieldWork(dto);
+        return Result.success();
+    }
+
+    @Operation(summary = "取消外勤标记")
+    @DeleteMapping("/fieldwork/{applicationId}")
+    public Result<Void> cancelFieldWork(@PathVariable Long applicationId) {
+        attendanceService.cancelFieldWork(applicationId);
         return Result.success();
     }
 

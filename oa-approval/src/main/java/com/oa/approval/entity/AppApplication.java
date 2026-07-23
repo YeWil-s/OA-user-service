@@ -7,6 +7,7 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @TableName("app_application")
@@ -22,6 +23,10 @@ public class AppApplication {
     private LocalDateTime startTime;
     private LocalDateTime endTime;
     private BigDecimal duration;
+    private Long targetDeptId;
+    private Long targetPositionId;
+    private Long assetId;
+    private LocalDate expectReturnDate;
     private String reason;
     private String attachments;
     private Integer status;
@@ -49,6 +54,14 @@ public class AppApplication {
     public void setEndTime(LocalDateTime endTime) { this.endTime = endTime; }
     public BigDecimal getDuration() { return duration; }
     public void setDuration(BigDecimal duration) { this.duration = duration; }
+    public Long getTargetDeptId() { return targetDeptId; }
+    public void setTargetDeptId(Long targetDeptId) { this.targetDeptId = targetDeptId; }
+    public Long getTargetPositionId() { return targetPositionId; }
+    public void setTargetPositionId(Long targetPositionId) { this.targetPositionId = targetPositionId; }
+    public Long getAssetId() { return assetId; }
+    public void setAssetId(Long assetId) { this.assetId = assetId; }
+    public LocalDate getExpectReturnDate() { return expectReturnDate; }
+    public void setExpectReturnDate(LocalDate expectReturnDate) { this.expectReturnDate = expectReturnDate; }
     public String getReason() { return reason; }
     public void setReason(String reason) { this.reason = reason; }
     public String getAttachments() { return attachments; }
