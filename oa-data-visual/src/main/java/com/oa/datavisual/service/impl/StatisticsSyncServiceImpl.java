@@ -26,6 +26,17 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.List;
 
+/**
+ * 统计数据同步服务。
+ *
+ * @deprecated 当前通过跨库SQL直接查询 user_db/attendance_db/approval_db。
+ * 迁移计划：改为通过各服务的HTTP API获取数据。
+ * - 考勤数据：GET /api/attendance/records/monthly-summary?month=yyyy-MM
+ * - 审批数据：GET /api/approval/applications/monthly-summary?month=yyyy-MM（待添加）
+ * - 用户数据：GET /api/user/employees/monthly-overview?month=yyyy-MM（待添加）
+ * 客户端类已创建在 com.oa.datavisual.client 包下，待API就绪后切换。
+ */
+@Deprecated
 @Service
 public class StatisticsSyncServiceImpl implements IStatisticsSyncService {
 

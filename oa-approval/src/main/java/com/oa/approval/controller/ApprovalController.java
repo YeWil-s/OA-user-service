@@ -4,6 +4,8 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.oa.approval.dto.ApplicationQueryDTO;
 import com.oa.approval.dto.ApplicationSubmitDTO;
 import com.oa.approval.dto.ApprovalActionDTO;
+import com.oa.approval.dto.VisualApprovalRealtimeDTO;
+import com.oa.approval.dto.VisualApprovalStatsDTO;
 import com.oa.approval.service.IApprovalService;
 import com.oa.approval.vo.ApplicationDetailVO;
 import com.oa.approval.vo.ApplicationVO;
@@ -18,7 +20,10 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 @Tag(name = "Approval Service")
 @Validated
@@ -87,5 +92,15 @@ public class ApprovalController {
     @GetMapping("/pending/all")
     public Result<IPage<ApplicationVO>> allPending(@Valid ApplicationQueryDTO dto) {
         return Result.success(approvalService.allPending(dto));
+    }
+
+    @GetMapping("/internal/visual/monthly")
+    public Result<List<VisualApprovalStatsDTO>> monthlyVisualStats(@RequestParam(required = false) String month) {
+        return Result.success(approvalService.monthlyVisualStats(month));
+    }
+
+    @GetMapping("/internal/visual/realtime")
+    public Result<VisualApprovalRealtimeDTO> visualRealtimeStats(@RequestParam(required = false) String month) {
+        return Result.success(approvalService.visualRealtimeStats(month));
     }
 }

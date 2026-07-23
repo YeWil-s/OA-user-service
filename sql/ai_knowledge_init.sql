@@ -22,21 +22,39 @@ USE ai_db;
 -- 2.1 知识文档表
 DROP TABLE IF EXISTS ai_knowledge_doc;
 CREATE TABLE ai_knowledge_doc (
-    id           BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键',
-    title        VARCHAR(200) NOT NULL             COMMENT '文档标题',
-    content      LONGTEXT     NOT NULL             COMMENT '文档正文(Markdown格式)',
-    summary      VARCHAR(500) DEFAULT NULL         COMMENT '文档摘要(用于列表卡片展示)',
-    category     TINYINT      NOT NULL             COMMENT '分类: 1=公司制度, 2=操作流程, 3=HR政策, 4=财务制度, 5=IT规范, 6=其他',
-    access_roles VARCHAR(200) NOT NULL DEFAULT '["ROLE_EMPLOYEE","ROLE_LEADER","ROLE_HR","ROLE_ADMIN"]' COMMENT '可访问角色(JSON数组)',
-    status       TINYINT      NOT NULL DEFAULT 1   COMMENT '状态: 0=停用, 1=启用',
-    create_by    BIGINT       DEFAULT NULL         COMMENT '创建人ID',
-    create_time  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    update_time  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    is_deleted   TINYINT      NOT NULL DEFAULT 0   COMMENT '逻辑删除: 0=未删除, 1=已删除',
+    id               BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键',
+    title            VARCHAR(200) NOT NULL             COMMENT '文档标题',
+    content          LONGTEXT     NOT NULL             COMMENT '文档正文(Markdown格式)',
+    summary          VARCHAR(500) DEFAULT NULL         COMMENT '文档摘要(用于列表卡片展示)',
+    category         TINYINT      NOT NULL             COMMENT '分类: 1=公司制度, 2=操作流程, 3=HR政策, 4=财务制度, 5=IT规范, 6=其他',
+    dept_id          BIGINT       DEFAULT NULL         COMMENT '所属部门ID',
+    access_roles     VARCHAR(200) NOT NULL DEFAULT '["ROLE_EMPLOYEE","ROLE_LEADER","ROLE_HR","ROLE_ADMIN"]' COMMENT '可访问角色(JSON数组)',
+    access_positions VARCHAR(500) DEFAULT NULL         COMMENT '可访问岗位(JSON数组)',
+    access_depts     VARCHAR(500) DEFAULT NULL         COMMENT '可访问部门(JSON数组)',
+    access_mode      TINYINT      DEFAULT 0            COMMENT '访问模式: 0=全部可见, 1=按角色, 2=按部门岗位',
+    version          INT          DEFAULT 1            COMMENT '版本号',
+    vector_status    TINYINT      DEFAULT 0            COMMENT '向量状态: 0=未同步, 1=已同步, 2=同步失败',
+    vector_error     VARCHAR(500) DEFAULT NULL         COMMENT '向量同步错误信息',
+    status           TINYINT      NOT NULL DEFAULT 1   COMMENT '状态: 0=停用, 1=启用',
+    create_by        BIGINT       DEFAULT NULL         COMMENT '创建人ID',
+    create_time      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    update_time      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    is_deleted       TINYINT      NOT NULL DEFAULT 0   COMMENT '逻辑删除: 0=未删除, 1=已删除',
     PRIMARY KEY (id),
     KEY idx_category (category),
-    KEY idx_status (status)
+    KEY idx_status (status),
+    KEY idx_vector_status (vector_status)
 ) ENGINE=InnoDB COMMENT='知识文档表';
+
+-- 如果数据库中已有旧版 ai_knowledge_doc 表，执行以下 ALTER 进行升级：
+-- ALTER TABLE ai_knowledge_doc ADD COLUMN dept_id BIGINT DEFAULT NULL COMMENT '所属部门ID' AFTER category;
+-- ALTER TABLE ai_knowledge_doc ADD COLUMN access_positions VARCHAR(500) DEFAULT NULL COMMENT '可访问岗位(JSON数组)' AFTER access_roles;
+-- ALTER TABLE ai_knowledge_doc ADD COLUMN access_depts VARCHAR(500) DEFAULT NULL COMMENT '可访问部门(JSON数组)' AFTER access_positions;
+-- ALTER TABLE ai_knowledge_doc ADD COLUMN access_mode TINYINT DEFAULT 0 COMMENT '访问模式: 0=全部可见, 1=按角色, 2=按部门岗位' AFTER access_depts;
+-- ALTER TABLE ai_knowledge_doc ADD COLUMN version INT DEFAULT 1 COMMENT '版本号' AFTER access_mode;
+-- ALTER TABLE ai_knowledge_doc ADD COLUMN vector_status TINYINT DEFAULT 0 COMMENT '向量状态: 0=未同步, 1=已同步, 2=同步失败' AFTER version;
+-- ALTER TABLE ai_knowledge_doc ADD COLUMN vector_error VARCHAR(500) DEFAULT NULL COMMENT '向量同步错误信息' AFTER vector_status;
+-- ALTER TABLE ai_knowledge_doc ADD INDEX idx_vector_status (vector_status);
 
 -- 2.2 知识标签表
 DROP TABLE IF EXISTS ai_knowledge_tag;

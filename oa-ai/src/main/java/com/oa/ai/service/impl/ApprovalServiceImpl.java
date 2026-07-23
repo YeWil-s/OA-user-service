@@ -1,82 +1,50 @@
 package com.oa.ai.service.impl;
 
+import com.oa.ai.client.ApprovalServiceClient;
 import com.oa.ai.dto.ApprovalSubmitDTO;
-import com.oa.ai.entity.AppApplication;
-import com.oa.ai.mapper.ApplicationMapper;
 import com.oa.ai.service.IApprovalService;
+import com.oa.common.exception.BusinessException;
+import com.oa.common.result.Result;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-import java.math.BigDecimal;
-import java.math.RoundingMode;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.time.temporal.ChronoUnit;
-import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Objects;
 
-/**
- * TODO: 当前为临时方案，直接写 approval_db.app_application 表。
- * 待 oa-approval 服务开发完成后，改为通过 Nacos 服务发现 + Feign/RestTemplate 调用：
- * <pre>
- *   restTemplate.postForObject("http://oa-approval-service/api/approval/submit", dto, String.class);
- * </pre>
- * 届时删除本类中的 ApplicationMapper 注入和所有直接 DB 操作。
- */
 @Service
 public class ApprovalServiceImpl implements IApprovalService {
 
-    // TODO: 待 oa-approval 上线后替换为 Feign 调用
-    private final ApplicationMapper applicationMapper;
+    private static final Logger log = LoggerFactory.getLogger(ApprovalServiceImpl.class);
 
-    public ApprovalServiceImpl(ApplicationMapper applicationMapper) {
-        this.applicationMapper = applicationMapper;
+    private final ApprovalServiceClient approvalServiceClient;
+
+    public ApprovalServiceImpl(ApprovalServiceClient approvalServiceClient) {
+        this.approvalServiceClient = approvalServiceClient;
     }
 
     @Override
     public String submitApplication(ApprovalSubmitDTO dto, Long userId, Long deptId) {
-        String applicationNo = generateApplicationNo();
+        Map<String, Object> body = new HashMap<>();
+        body.put("appType", dto.getAppType());
+        body.put("leaveType", dto.getLeaveType());
+        body.put("startTime", dto.getStartTime().toString());
+        body.put("endTime", dto.getEndTime().toString());
+        body.put("reason", dto.getReason());
 
-        AppApplication app = new AppApplication();
-        app.setApplicationNo(applicationNo);
-        app.setUserId(userId);
-        app.setDeptId(deptId != null ? deptId : 1L);
-        app.setAppType(dto.getAppType());
-        app.setLeaveType(dto.getLeaveType());
-        app.setStartTime(dto.getStartTime());
-        app.setEndTime(dto.getEndTime());
-
-        if (dto.getDuration() != null) {
-            app.setDuration(dto.getDuration());
-        } else {
-            long hours = ChronoUnit.HOURS.between(dto.getStartTime(), dto.getEndTime());
-            BigDecimal duration = BigDecimal.valueOf(hours).divide(BigDecimal.valueOf(8), 1, RoundingMode.HALF_UP);
-            app.setDuration(duration);
-        }
-
-        app.setReason(dto.getReason());
-        app.setStatus(1); // pending approval
-        app.setCreateTime(LocalDateTime.now());
-        app.setUpdateTime(LocalDateTime.now());
-
-        applicationMapper.insert(app);
-        return applicationNo;
-    }
-
-    @Override
-    public AppApplication getApplication(Long id) {
-        return applicationMapper.selectById(id);
-    }
-
-    private String generateApplicationNo() {
-        String today = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
-        String maxNo = applicationMapper.selectMaxApplicationNoToday();
-        int seq = 1;
-        if (maxNo != null && maxNo.length() >= 13) {
-            try {
-                seq = Integer.parseInt(maxNo.substring(maxNo.length() - 3)) + 1;
-            } catch (NumberFormatException e) {
-                // use default seq=1
+        try {
+            Result<Map<String, Object>> result = approvalServiceClient.submit(body);
+            if (result == null || result.getCode() != 200 || result.getData() == null) {
+                throw new BusinessException(50000, "调用审批服务失败");
             }
+            Object applicationNo = result.getData().get("applicationNo");
+            return applicationNo != null ? applicationNo.toString() : "未知单号";
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("调用审批服务提交申请失败", e);
+            throw new BusinessException(50000, "调用审批服务失败: " + e.getMessage());
         }
-        return "LV" + today + String.format("%03d", seq);
     }
 }

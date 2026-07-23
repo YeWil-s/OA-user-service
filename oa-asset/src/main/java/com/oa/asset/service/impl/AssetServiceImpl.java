@@ -11,6 +11,7 @@ import com.oa.asset.entity.AssetRecord;
 import com.oa.asset.mapper.AssetMapper;
 import com.oa.asset.mapper.AssetRecordMapper;
 import com.oa.asset.service.AssetService;
+import com.oa.asset.service.UserDirectoryService;
 import com.oa.common.exception.BusinessException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,8 +24,8 @@ import java.time.LocalDateTime;
 /**
  * 资产业务实现。
  *
- * <p>资产状态约定：0=已报废，1=可领用，2=已领用；
- * 领用记录状态约定：1=领用中，2=已归还。</p>
+ * <p>资产状态约定:0=已报废，1=可领用，2=已领用；
+ * 领用记录状态约定:1=领用中，2=已归还。</p>
  */
 public class AssetServiceImpl implements AssetService {
     private static final int NOT_FOUND = 60001;
@@ -34,10 +35,18 @@ public class AssetServiceImpl implements AssetService {
     private static final int ALREADY_RETURNED = 60005;
     private final AssetMapper assetMapper;
     private final AssetRecordMapper recordMapper;
+    private final UserDirectoryService userDirectoryService;
+    private final com.oa.asset.client.NoticeServiceClient noticeServiceClient;
 
-    public AssetServiceImpl(AssetMapper assetMapper, AssetRecordMapper recordMapper) {
+    private static final int MSG_TYPE_SYSTEM = 3;
+
+    public AssetServiceImpl(AssetMapper assetMapper, AssetRecordMapper recordMapper,
+                            UserDirectoryService userDirectoryService,
+                            com.oa.asset.client.NoticeServiceClient noticeServiceClient) {
         this.assetMapper = assetMapper;
         this.recordMapper = recordMapper;
+        this.userDirectoryService = userDirectoryService;
+        this.noticeServiceClient = noticeServiceClient;
     }
 
     @Override
@@ -82,7 +91,7 @@ public class AssetServiceImpl implements AssetService {
         requireAsset(id);
         Long active = recordMapper.selectCount(new LambdaQueryWrapper<AssetRecord>().eq(AssetRecord::getAssetId, id).eq(AssetRecord::getStatus, 1));
         if (active > 0) throw new BusinessException(UNAVAILABLE, "资产领用中，归还后才能报废");
-        // 报废也使用状态条件更新，与领用竞争时只有一个操作能成功，避免出现“已报废但仍领用中”。
+        // 报废也使用状态条件更新，与领用竞争时只有一个操作能成功，避免出现"已报废但仍领用中"。
         int updated = assetMapper.update(null, new LambdaUpdateWrapper<Asset>()
                 .eq(Asset::getId, id).eq(Asset::getStatus, 1)
                 .set(Asset::getStatus, 0).set(Asset::getUpdateTime, LocalDateTime.now()));
@@ -92,9 +101,8 @@ public class AssetServiceImpl implements AssetService {
     @Override
     @Transactional
     public AssetRecord borrow(BorrowDTO dto) {
-        requireAsset(dto.getAssetId());
-        // 将“检查状态”和“修改状态”合并为一条条件 UPDATE。
-        // 并发请求中只有一个请求能把状态从1改为2，从而避免同一资产被重复领用。
+        userDirectoryService.requireEmployee(dto.getUserId());
+        Asset asset = requireAsset(dto.getAssetId());
         int updated = assetMapper.update(null, new LambdaUpdateWrapper<Asset>()
                 .eq(Asset::getId, dto.getAssetId()).eq(Asset::getStatus, 1)
                 .set(Asset::getStatus, 2).set(Asset::getUpdateTime, LocalDateTime.now()));
@@ -108,6 +116,12 @@ public class AssetServiceImpl implements AssetService {
         record.setBorrowDate(borrowDate); record.setExpectReturnDate(dto.getExpectReturnDate());
         record.setStatus(1); record.setCreateTime(LocalDateTime.now());
         recordMapper.insert(record);
+
+        noticeServiceClient.sendMessage(dto.getUserId(),
+                "资产领用确认",
+                "您已领用资产:" + asset.getAssetName() + "。",
+                MSG_TYPE_SYSTEM,
+                record.getId());
         return record;
     }
 
@@ -116,7 +130,7 @@ public class AssetServiceImpl implements AssetService {
     public void returnAsset(Long recordId) {
         AssetRecord record = recordMapper.selectById(recordId);
         if (record == null) throw new BusinessException(RECORD_NOT_FOUND, "领用记录不存在");
-        // 只有状态为“领用中”的记录可以归还，条件更新同时避免重复归还。
+        // 只有状态为"领用中"的记录可以归还，条件更新同时避免重复归还。
         int updated = recordMapper.update(null, new LambdaUpdateWrapper<AssetRecord>()
                 .eq(AssetRecord::getId, recordId).eq(AssetRecord::getStatus, 1)
                 .set(AssetRecord::getStatus, 2).set(AssetRecord::getActualReturnDate, LocalDate.now()));
@@ -125,6 +139,14 @@ public class AssetServiceImpl implements AssetService {
                 .eq(Asset::getId, record.getAssetId()).eq(Asset::getStatus, 2)
                 .set(Asset::getStatus, 1).set(Asset::getUpdateTime, LocalDateTime.now()));
         if (assetUpdated != 1) throw new BusinessException(UNAVAILABLE, "资产状态异常，归还失败");
+
+        Asset asset = assetMapper.selectById(record.getAssetId());
+        String assetName = asset != null ? asset.getAssetName() : "未知资产";
+        noticeServiceClient.sendMessage(record.getUserId(),
+                "资产归还确认",
+                "您已归还资产:" + assetName + "。",
+                MSG_TYPE_SYSTEM,
+                record.getId());
     }
 
     @Override

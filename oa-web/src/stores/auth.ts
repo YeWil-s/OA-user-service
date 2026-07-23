@@ -1,7 +1,6 @@
 import { defineStore } from 'pinia'
-import { authApi } from '@/api/services'
-import { mockUser } from '@/api/mock'
-import type { LoginUser } from '@/api/types'
+import { authApi, systemApi } from '@/api/services'
+import type { LoginUser, RouterVO } from '@/api/types'
 
 const TOKEN_KEY = 'oa_token'
 const USER_KEY = 'oa_user'
@@ -10,7 +9,7 @@ export const useAuthStore = defineStore('auth', {
   state: () => ({
     token: localStorage.getItem(TOKEN_KEY) || '',
     user: JSON.parse(localStorage.getItem(USER_KEY) || 'null') as LoginUser | null,
-    demoMode: localStorage.getItem('oa_demo_mode') === '1'
+    menus: [] as RouterVO[]
   }),
   getters: {
     isAuthed: (state) => Boolean(state.token),
@@ -19,26 +18,36 @@ export const useAuthStore = defineStore('auth', {
   actions: {
     async login(username: string, password: string) {
       const user = await authApi.login({ username, password })
-      this.setSession(user, false)
+      this.setSession(user)
     },
-    useDemo() {
-      this.setSession(mockUser, true)
-    },
-    setSession(user: LoginUser, demo: boolean) {
+    setSession(user: LoginUser) {
       this.user = user
       this.token = user.accessToken
-      this.demoMode = demo
       localStorage.setItem(TOKEN_KEY, user.accessToken)
       localStorage.setItem(USER_KEY, JSON.stringify(user))
-      localStorage.setItem('oa_demo_mode', demo ? '1' : '0')
     },
-    logout() {
+    async loadMenus() {
+      try {
+        this.menus = await systemApi.routers()
+      } catch {
+        this.menus = []
+      }
+    },
+    async logout() {
+      try {
+        if (this.token) {
+          await authApi.logout()
+        }
+      } finally {
+        this.clearSession()
+      }
+    },
+    clearSession() {
       this.token = ''
       this.user = null
-      this.demoMode = false
+      this.menus = []
       localStorage.removeItem(TOKEN_KEY)
       localStorage.removeItem(USER_KEY)
-      localStorage.removeItem('oa_demo_mode')
     }
   }
 })

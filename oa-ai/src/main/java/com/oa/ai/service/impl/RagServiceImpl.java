@@ -45,7 +45,7 @@ public class RagServiceImpl implements RagService {
     }
 
     @Override
-    public Flux<String> answerQuestion(String question, List<String> userRoles, Long userId, String sessionId) {
+    public Flux<String> answerQuestion(String question, List<String> userRoles, Long userId, Long deptId, Long positionId, String sessionId) {
         Sinks.Many<String> sink = Sinks.many().unicast().onBackpressureBuffer();
 
         new Thread(() -> {
@@ -56,7 +56,7 @@ public class RagServiceImpl implements RagService {
                 float[] queryEmbedding = embeddingService.embed(question);
 
                 // Step 2: KNN vector similarity search in Redis Stack with role filter
-                List<SourceRefVO> sources = vectorStoreService.search(queryEmbedding, userRoles, 5);
+                List<SourceRefVO> sources = vectorStoreService.search(queryEmbedding, userRoles, deptId, positionId, 5);
 
                 // Send sources to client
                 try {

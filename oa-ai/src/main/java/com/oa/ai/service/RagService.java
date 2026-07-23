@@ -6,5 +6,5 @@ import java.util.List;
 
 public interface RagService {
 
-    Flux<String> answerQuestion(String question, List<String> userRoles, Long userId, String sessionId);
+    Flux<String> answerQuestion(String question, List<String> userRoles, Long userId, Long deptId, Long positionId, String sessionId);
 }

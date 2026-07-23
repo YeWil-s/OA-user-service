@@ -1,14 +1,15 @@
 <template>
   <main class="login-page">
+    <ThemeToggle class="login-theme" />
     <section class="login-visual">
       <div class="visual-grid">
         <div class="visual-stat">
-          <span>今日出勤</span>
-          <strong>96.5%</strong>
+          <span>组织权限</span>
+          <strong>统一管理</strong>
         </div>
         <div class="visual-stat">
-          <span>审批平均耗时</span>
-          <strong>5.6h</strong>
+          <span>流程协同</span>
+          <strong>实时流转</strong>
         </div>
         <div class="visual-bars">
           <span v-for="height in [46, 64, 52, 78, 70, 88, 82]" :key="height" :style="{ height: height + '%' }" />
@@ -41,19 +42,16 @@
           <LogIn class="icon" />
           {{ loading ? '登录中' : '登录' }}
         </button>
-        <button class="btn ghost login-submit" type="button" @click="demo">
-          <MonitorPlay class="icon" />
-          演示进入
-        </button>
       </form>
     </section>
   </main>
 </template>
 
 <script setup lang="ts">
-import { LogIn, MonitorPlay } from 'lucide-vue-next'
+import { LogIn } from 'lucide-vue-next'
 import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import ThemeToggle from '@/components/ThemeToggle.vue'
 import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
@@ -70,26 +68,36 @@ async function submit() {
   loading.value = true
   try {
     await auth.login(form.username, form.password)
-    router.push('/dashboard')
+    await auth.loadMenus()
+    const roles = auth.user?.roles ?? []
+    if (roles.includes('ROLE_EMPLOYEE') && !roles.includes('ROLE_ADMIN') && !roles.includes('ROLE_HR') && !roles.includes('ROLE_LEADER')) {
+      router.push('/attendance/punch')
+    } else {
+      router.push('/dashboard')
+    }
   } catch (err) {
     error.value = err instanceof Error ? err.message : '登录失败'
   } finally {
     loading.value = false
   }
 }
-
-function demo() {
-  auth.useDemo()
-  router.push('/dashboard')
-}
 </script>
 
 <style scoped>
 .login-page {
+  position: relative;
   min-height: 100vh;
   display: grid;
-  grid-template-columns: minmax(0, 1.05fr) minmax(420px, 0.95fr);
-  background: #f4f7fb;
+  grid-template-columns: minmax(0, 1.08fr) minmax(420px, 0.92fr);
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.login-theme {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 10;
 }
 
 .login-visual {
@@ -97,10 +105,19 @@ function demo() {
   overflow: hidden;
   display: grid;
   place-items: center;
+  border-right: 1px solid var(--border);
   background:
-    linear-gradient(rgba(18, 31, 50, 0.62), rgba(18, 31, 50, 0.62)),
-    url("data:image/svg+xml,%3Csvg width='1200' height='900' viewBox='0 0 1200 900' xmlns='http://www.w3.org/2000/svg'%3E%3Crect width='1200' height='900' fill='%23182333'/%3E%3Cg opacity='.28'%3E%3Crect x='110' y='170' width='300' height='190' fill='%232b8798'/%3E%3Crect x='455' y='120' width='520' height='90' fill='%23ffffff'/%3E%3Crect x='455' y='250' width='220' height='260' fill='%23b87716'/%3E%3Crect x='710' y='250' width='320' height='260' fill='%23ffffff'/%3E%3Crect x='170' y='430' width='300' height='260' fill='%23ffffff'/%3E%3Crect x='520' y='570' width='420' height='150' fill='%232b8798'/%3E%3C/g%3E%3C/svg%3E");
+    linear-gradient(rgba(8, 14, 24, 0.54), rgba(8, 14, 24, 0.72)),
+    url("data:image/svg+xml,%3Csvg width='1200' height='900' viewBox='0 0 1200 900' xmlns='http://www.w3.org/2000/svg'%3E%3Crect width='1200' height='900' fill='%23131d2b'/%3E%3Cg opacity='.34'%3E%3Crect x='110' y='170' width='300' height='190' fill='%234c96a7'/%3E%3Crect x='455' y='120' width='520' height='90' fill='%23d8e2ee'/%3E%3Crect x='455' y='250' width='220' height='260' fill='%23d09a4e'/%3E%3Crect x='710' y='250' width='320' height='260' fill='%23d8e2ee'/%3E%3Crect x='170' y='430' width='300' height='260' fill='%23d8e2ee'/%3E%3Crect x='520' y='570' width='420' height='150' fill='%234c96a7'/%3E%3C/g%3E%3C/svg%3E");
   background-size: cover;
+}
+
+.login-visual::after {
+  position: absolute;
+  inset: 0;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  pointer-events: none;
+  content: "";
 }
 
 .visual-grid {
@@ -114,11 +131,14 @@ function demo() {
 .visual-bars {
   min-height: 150px;
   padding: 22px;
-  border: 1px solid rgba(255, 255, 255, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.13);
-  color: #fff;
-  backdrop-filter: blur(12px);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.1), transparent 72%),
+    rgba(16, 25, 39, 0.36);
+  color: #f6f8fb;
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(14px);
 }
 
 .visual-stat span,
@@ -127,13 +147,14 @@ function demo() {
 }
 
 .visual-stat span {
-  color: #d6e3ef;
-  font-size: 14px;
+  color: #b9c7d8;
+  font-size: 12px;
 }
 
 .visual-stat strong {
-  margin-top: 18px;
-  font-size: 42px;
+  margin-top: 20px;
+  font-size: 38px;
+  font-variant-numeric: tabular-nums;
 }
 
 .visual-bars {
@@ -147,20 +168,25 @@ function demo() {
 .visual-bars span {
   flex: 1;
   min-width: 18px;
-  border-radius: 5px 5px 0 0;
-  background: #e8f4f6;
+  border-radius: 5px 5px 1px 1px;
+  background: linear-gradient(180deg, #60a5fa, #2563eb);
+  box-shadow: 0 0 18px rgba(59, 130, 246, 0.28);
 }
 
 .visual-bars span:nth-child(2n) {
-  background: #d59b44;
+  background: linear-gradient(180deg, #fb923c, #ea580c);
 }
 
 .login-card {
   display: grid;
   align-content: center;
-  gap: 30px;
-  padding: 56px;
-  background: #fff;
+  gap: 32px;
+  padding: clamp(36px, 5vw, 72px);
+  border-left: 1px solid var(--border);
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--surface-elevated) 38%, transparent), transparent 64%),
+    color-mix(in srgb, var(--bg-subtle) 88%, transparent);
+  backdrop-filter: blur(16px);
 }
 
 .login-brand {
@@ -170,40 +196,52 @@ function demo() {
 }
 
 .brand-mark {
-  width: 46px;
-  height: 46px;
+  width: 48px;
+  height: 48px;
   display: grid;
   place-items: center;
+  border: 1px solid color-mix(in srgb, var(--primary-soft) 36%, transparent);
   border-radius: 8px;
-  background: var(--primary);
+  background: var(--brand-gradient);
   color: #fff;
-  font-weight: 800;
+  box-shadow: 0 12px 30px var(--primary-glow), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  font-weight: 820;
 }
 
 .login-brand h1 {
   margin: 0;
-  font-size: 28px;
+  color: var(--text);
+  font-size: 27px;
 }
 
 .login-brand p {
-  margin: 5px 0 0;
+  margin: 6px 0 0;
   color: var(--muted);
+  font-size: 13px;
 }
 
 .login-form {
   display: grid;
-  gap: 16px;
+  gap: 17px;
 }
 
 .login-submit {
   width: 100%;
-  height: 42px;
+  height: 43px;
+  margin-top: 2px;
 }
 
 .error-text {
   margin: 0;
   color: var(--danger);
-  font-size: 13px;
+  font-size: 12px;
+  animation: login-shake 0.3s ease;
+}
+
+@keyframes login-shake {
+  25% { transform: translateX(-3px); }
+  50% { transform: translateX(3px); }
+  75% { transform: translateX(-2px); }
 }
 
 @media (max-width: 900px) {

@@ -7,6 +7,7 @@ import com.oa.user.vo.MenuTreeVO;
 import com.oa.user.vo.RouterVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
@@ -31,8 +32,12 @@ public class MenuController {
 
     @Operation(summary = "获取当前用户可访问的路由")
     @GetMapping("/routers")
-    public Result<Void> routers(@RequestHeader("Authorization") String authHeader) {
-        return Result.success();
+    public Result<List<RouterVO>> routers(HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        if (userId == null) {
+            return Result.fail(401, "未登录");
+        }
+        return Result.success(sysMenuService.getUserRouters(userId));
     }
 
     @Operation(summary = "新增菜单")

@@ -45,6 +45,7 @@ class ApiConstants {
   static const String attendanceShifts = '/api/attendance/shifts';
   static String attendanceShiftDetail(int id) => '/api/attendance/shifts/$id';
   static const String attendanceUserShifts = '/api/attendance/user-shifts';
+  static const String attendanceSchedulesMine = '/api/attendance/schedules/mine';
 
   // ==================== approval-service ====================
   static const String approvalApplications = '/api/approval/applications';

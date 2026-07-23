@@ -19,7 +19,7 @@ class MessagesPage extends ConsumerWidget {
         appBar: AppBar(
           title: const Text('消息'),
           bottom: const TabBar(
-            tabs: [Tab(text: '审批通知'), Tab(text: '考勤通知'), Tab(text: '系统通知')],
+            tabs: [const Tab(text: '考勤通知'), const Tab(text: '审批通知'), const Tab(text: '系统通知')],
           ),
         ),
         body: messagesAsync.when(
@@ -37,7 +37,7 @@ class MessagesPage extends ConsumerWidget {
             ),
           ),
           data: (messages) => TabBarView(
-            children: [1, 2, 3].map((type) {
+            children: [2, 1, 3].map((type) {
               final filtered = messages.where((m) => m.msgType == type).toList();
               if (filtered.isEmpty) {
                 return Center(

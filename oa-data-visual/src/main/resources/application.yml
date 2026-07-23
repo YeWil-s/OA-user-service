@@ -26,11 +26,18 @@ spring:
         file-extension: yaml
         import-check:
           enabled: false
-
 mybatis-plus:
   configuration:
     log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
     map-underscore-to-camel-case: true
+
+oa:
+  attendance-service:
+    base-url: http://oa-attendance-service
+  approval-service:
+    base-url: http://oa-approval-service
+  user-service:
+    base-url: http://oa-user-service
 
 knife4j:
   enable: true

@@ -26,7 +26,6 @@ spring:
         file-extension: yaml
         import-check:
           enabled: false
-
 mybatis-plus:
   global-config:
     db-config:
@@ -38,6 +37,8 @@ mybatis-plus:
 oa:
   user-service:
     base-url: http://oa-user-service
+  notice-service:
+    base-url: http://oa-notice-service
 
 knife4j:
   enable: true

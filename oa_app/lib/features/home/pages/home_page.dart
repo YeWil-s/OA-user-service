@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/utils/location_service.dart';
+import '../models/schedule.dart';
 import '../providers/home_provider.dart';
 import '../../attendance/providers/attendance_provider.dart';
 import '../../attendance/models/attendance_record.dart';
@@ -227,6 +228,7 @@ class _HomePageState extends ConsumerState<HomePage> {
     final theme = Theme.of(context);
     final punch = homeState.punchStatus;
     final summary = homeState.monthlySummary;
+    final schedules = homeState.weeklySchedules;
 
     return Scaffold(
       appBar: AppBar(
@@ -296,6 +298,12 @@ class _HomePageState extends ConsumerState<HomePage> {
                 ],
               ),
             ),
+            const SizedBox(height: 20),
+
+            // 本周排班
+            _sectionHeader('本周排班'),
+            const SizedBox(height: 8),
+            _buildWeeklySchedule(theme, schedules),
             const SizedBox(height: 20),
 
             // 月度汇总
@@ -410,5 +418,76 @@ class _HomePageState extends ConsumerState<HomePage> {
       case 'leave': return const Color(0xFF1565C0);
       default: return Colors.grey;
     }
+  }
+
+  Widget _buildWeeklySchedule(ThemeData theme, List<Schedule> schedules) {
+    final labels = ['一', '二', '三', '四', '五', '六', '日'];
+    if (schedules.isEmpty) {
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Center(child: Text('暂无排班信息', style: TextStyle(color: theme.colorScheme.outline))),
+        ),
+      );
+    }
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: List.generate(7, (i) {
+              final s = schedules.length > i ? schedules[i] : null;
+              final isToday = s != null && s.scheduleDate == _todayStr();
+              final isLeave = s?.isLeave ?? false;
+              return Container(
+                width: 72,
+                margin: const EdgeInsets.symmetric(horizontal: 3),
+                decoration: BoxDecoration(
+                  color: isToday
+                      ? theme.colorScheme.primaryContainer.withValues(alpha: 0.5)
+                      : isLeave
+                          ? Colors.red.shade50
+                          : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(10),
+                  border: isToday ? Border.all(color: theme.colorScheme.primary, width: 1.5) : null,
+                ),
+                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(labels[i], style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: isToday ? theme.colorScheme.primary : theme.colorScheme.outline)),
+                    const SizedBox(height: 4),
+                    Text(s?.scheduleDate.substring(8) ?? '-', style: TextStyle(fontSize: 11, color: theme.colorScheme.outline)),
+                    const SizedBox(height: 6),
+                    if (isLeave)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(color: Colors.red.shade100, borderRadius: BorderRadius.circular(8)),
+                        child: const Text('请假', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.red)),
+                      )
+                    else if (s != null)
+                      Column(children: [
+                        Text(s.shiftName, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: theme.colorScheme.primary), textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis),
+                        const SizedBox(height: 2),
+                        Text('${s.startTime.substring(0, 5)}', style: TextStyle(fontSize: 10, color: theme.colorScheme.outline)),
+                        Text('${s.endTime.substring(0, 5)}', style: TextStyle(fontSize: 10, color: theme.colorScheme.outline)),
+                        if (s.isDefault) Text('默认', style: TextStyle(fontSize: 9, color: theme.colorScheme.outline)),
+                      ])
+                    else
+                      const Text('-', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                  ],
+                ),
+              );
+            }),
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _todayStr() {
+    final n = DateTime.now();
+    return '${n.year}-${n.month.toString().padLeft(2, '0')}-${n.day.toString().padLeft(2, '0')}';
   }
 }

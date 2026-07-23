@@ -9,8 +9,12 @@ import com.oa.asset.entity.EmployeeArchive;
 import com.oa.asset.entity.StaffChange;
 import com.oa.asset.mapper.EmployeeArchiveMapper;
 import com.oa.asset.mapper.StaffChangeMapper;
+import com.oa.asset.client.UserDirectoryClient;
 import com.oa.asset.service.StaffService;
+import com.oa.asset.service.UserDirectoryService;
 import com.oa.common.exception.BusinessException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,14 +26,28 @@ import java.time.LocalDateTime;
  * 员工档案、合同和人事变动业务实现。
  */
 public class StaffServiceImpl implements StaffService {
+    private static final Logger log = LoggerFactory.getLogger(StaffServiceImpl.class);
     private final EmployeeArchiveMapper archiveMapper;
     private final StaffChangeMapper changeMapper;
-    public StaffServiceImpl(EmployeeArchiveMapper archiveMapper, StaffChangeMapper changeMapper) {
+    private final UserDirectoryService userDirectoryService;
+    private final UserDirectoryClient userDirectoryClient;
+    private final com.oa.asset.client.NoticeServiceClient noticeServiceClient;
+
+    private static final int MSG_TYPE_SYSTEM = 3;
+
+    public StaffServiceImpl(EmployeeArchiveMapper archiveMapper, StaffChangeMapper changeMapper,
+                            UserDirectoryService userDirectoryService,
+                            UserDirectoryClient userDirectoryClient,
+                            com.oa.asset.client.NoticeServiceClient noticeServiceClient) {
         this.archiveMapper = archiveMapper; this.changeMapper = changeMapper;
+        this.userDirectoryService = userDirectoryService;
+        this.userDirectoryClient = userDirectoryClient;
+        this.noticeServiceClient = noticeServiceClient;
     }
 
     @Override
     public EmployeeArchive getArchive(Long userId) {
+        userDirectoryService.requireEmployee(userId);
         EmployeeArchive archive = archiveMapper.selectOne(new LambdaQueryWrapper<EmployeeArchive>().eq(EmployeeArchive::getUserId, userId));
         if (archive == null) throw new BusinessException(60006, "员工档案不存在");
         return archive;
@@ -38,6 +56,7 @@ public class StaffServiceImpl implements StaffService {
     @Override
     @Transactional
     public void saveArchive(Long userId, EmployeeArchiveDTO dto) {
+        userDirectoryService.requireEmployee(userId);
         if (dto.getEducation() != null && (dto.getEducation() < 1 || dto.getEducation() > 5)) throw new BusinessException(400, "学历仅支持1-5");
         if (dto.getContractStart() != null && dto.getContractEnd() != null && dto.getContractEnd().isBefore(dto.getContractStart())) {
             throw new BusinessException(400, "合同结束日期不能早于开始日期");
@@ -64,7 +83,7 @@ public class StaffServiceImpl implements StaffService {
     public IPage<EmployeeArchive> expiringContracts(int pageNum, int pageSize, int days) {
         if (days < 0 || days > 3650) throw new BusinessException(400, "预警天数必须在0-3650之间");
         LocalDate today = LocalDate.now();
-        // 预警范围包含今天和截止日；已经过期的合同不属于“即将到期”。
+        // 预警范围包含今天和截止日；已经过期的合同不属于"即将到期"。
         return archiveMapper.selectPage(new Page<>(pageNum, pageSize), new LambdaQueryWrapper<EmployeeArchive>()
                 .between(EmployeeArchive::getContractEnd, today, today.plusDays(days)).orderByAsc(EmployeeArchive::getContractEnd));
     }
@@ -77,12 +96,58 @@ public class StaffServiceImpl implements StaffService {
         return changeMapper.selectPage(new Page<>(pageNum, pageSize), q.orderByDesc(StaffChange::getChangeDate).orderByDesc(StaffChange::getId));
     }
 
-    @Override public void createChange(StaffChangeDTO dto) { StaffChange c = new StaffChange(); copy(dto, c); c.setCreateTime(LocalDateTime.now()); changeMapper.insert(c); }
-    @Override public void updateChange(Long id, StaffChangeDTO dto) { StaffChange c = requireChange(id); copy(dto, c); changeMapper.updateById(c); }
+        @Override
+    public void createChange(StaffChangeDTO dto) {
+        StaffChange c = new StaffChange();
+        copyValidated(dto, c);
+        c.setCreateTime(LocalDateTime.now());
+        changeMapper.insert(c);
+        if (dto.getUserId() != null) {
+            noticeServiceClient.sendMessage(dto.getUserId(),
+                    "人事变动通知",
+                    "您有一条新的人事变动记录，请及时查看。",
+                    MSG_TYPE_SYSTEM,
+                    c.getId());
+        }
+    }
+    @Override public void updateChange(Long id, StaffChangeDTO dto) { StaffChange c = requireChange(id); copyValidated(dto, c); changeMapper.updateById(c); }
     @Override public void deleteChange(Long id) { requireChange(id); changeMapper.deleteById(id); }
     private StaffChange requireChange(Long id) { StaffChange c = changeMapper.selectById(id); if (c == null) throw new BusinessException(60007, "人事变动记录不存在"); return c; }
-    private void copy(StaffChangeDTO d, StaffChange c) {
-        c.setUserId(d.getUserId()); c.setChangeType(d.getChangeType()); c.setBeforeDept(d.getBeforeDept()); c.setAfterDept(d.getAfterDept());
-        c.setBeforePosition(d.getBeforePosition()); c.setAfterPosition(d.getAfterPosition()); c.setChangeDate(d.getChangeDate()); c.setRemark(d.getRemark());
+    private void copyValidated(StaffChangeDTO d, StaffChange c) {
+        UserDirectoryClient.EmployeeRef employee = userDirectoryService.requireEmployee(d.getUserId());
+        Long currentDept = employee.getDeptId();
+        Long currentPosition = employee.getPositionId();
+        c.setUserId(d.getUserId()); c.setChangeType(d.getChangeType());
+        c.setChangeDate(d.getChangeDate()); c.setRemark(d.getRemark());
+
+        if (d.getChangeType() == 1) {
+            userDirectoryService.requireDepartmentAndPosition(d.getAfterDept(), d.getAfterPosition());
+            c.setBeforeDept(null); c.setBeforePosition(null);
+            c.setAfterDept(d.getAfterDept()); c.setAfterPosition(d.getAfterPosition());
+            syncUserDeptAndPosition(d.getUserId(), d.getAfterDept(), d.getAfterPosition());
+        } else if (d.getChangeType() == 3) {
+            userDirectoryService.requireDepartmentAndPosition(d.getAfterDept(), d.getAfterPosition());
+            c.setBeforeDept(currentDept); c.setBeforePosition(currentPosition);
+            c.setAfterDept(d.getAfterDept()); c.setAfterPosition(d.getAfterPosition());
+            syncUserDeptAndPosition(d.getUserId(), d.getAfterDept(), d.getAfterPosition());
+        } else if (d.getChangeType() == 4) {
+            c.setBeforeDept(currentDept); c.setBeforePosition(currentPosition);
+            c.setAfterDept(null); c.setAfterPosition(null);
+        } else {
+            userDirectoryService.requireDepartmentAndPosition(currentDept, currentPosition);
+            c.setBeforeDept(currentDept); c.setBeforePosition(currentPosition);
+            c.setAfterDept(currentDept); c.setAfterPosition(currentPosition);
+        }
+    }
+
+    private void syncUserDeptAndPosition(Long userId, Long deptId, Long positionId) {
+        try {
+            java.util.Map<String, Object> body = new java.util.HashMap<>();
+            body.put("deptId", deptId);
+            body.put("positionId", positionId);
+            userDirectoryClient.updateEmployee(userId, body);
+        } catch (Exception e) {
+            log.warn("同步员工{}部门/岗位到用户服务失败: {}", userId, e.getMessage());
+        }
     }
 }

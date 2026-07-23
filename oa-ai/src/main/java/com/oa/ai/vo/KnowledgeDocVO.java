@@ -11,7 +11,14 @@ public class KnowledgeDocVO {
     private Integer category;
     private String categoryDesc;
     private List<String> tagNames;
+    private Long deptId;
     private List<String> accessRoles;
+    private List<Long> accessPositions;
+    private List<Long> accessDepts;
+    private Integer accessMode;
+    private Integer version;
+    private Integer vectorStatus;
+    private String vectorError;
     private Integer status;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
@@ -28,8 +35,22 @@ public class KnowledgeDocVO {
     public void setCategoryDesc(String categoryDesc) { this.categoryDesc = categoryDesc; }
     public List<String> getTagNames() { return tagNames; }
     public void setTagNames(List<String> tagNames) { this.tagNames = tagNames; }
+    public Long getDeptId() { return deptId; }
+    public void setDeptId(Long deptId) { this.deptId = deptId; }
     public List<String> getAccessRoles() { return accessRoles; }
     public void setAccessRoles(List<String> accessRoles) { this.accessRoles = accessRoles; }
+    public List<Long> getAccessPositions() { return accessPositions; }
+    public void setAccessPositions(List<Long> accessPositions) { this.accessPositions = accessPositions; }
+    public List<Long> getAccessDepts() { return accessDepts; }
+    public void setAccessDepts(List<Long> accessDepts) { this.accessDepts = accessDepts; }
+    public Integer getAccessMode() { return accessMode; }
+    public void setAccessMode(Integer accessMode) { this.accessMode = accessMode; }
+    public Integer getVersion() { return version; }
+    public void setVersion(Integer version) { this.version = version; }
+    public Integer getVectorStatus() { return vectorStatus; }
+    public void setVectorStatus(Integer vectorStatus) { this.vectorStatus = vectorStatus; }
+    public String getVectorError() { return vectorError; }
+    public void setVectorError(String vectorError) { this.vectorError = vectorError; }
     public Integer getStatus() { return status; }
     public void setStatus(Integer status) { this.status = status; }
     public LocalDateTime getCreateTime() { return createTime; }

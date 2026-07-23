@@ -7,6 +7,9 @@ import com.oa.approval.client.UserServiceClient;
 import com.oa.approval.dto.ApplicationQueryDTO;
 import com.oa.approval.dto.ApplicationSubmitDTO;
 import com.oa.approval.dto.ApprovalActionDTO;
+import com.oa.approval.dto.VisualApprovalRealtimeDTO;
+import com.oa.approval.dto.VisualApprovalStatsDTO;
+import com.oa.approval.dto.VisualTypeCountDTO;
 import com.oa.approval.entity.AppApplication;
 import com.oa.approval.entity.AppApprovalRecord;
 import com.oa.approval.mapper.AppApplicationMapper;
@@ -29,12 +32,15 @@ import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -45,15 +51,23 @@ public class ApprovalServiceImpl implements IApprovalService {
     private final AppApplicationMapper appApplicationMapper;
     private final AppApprovalRecordMapper appApprovalRecordMapper;
     private final UserServiceClient userServiceClient;
+    private final com.oa.approval.client.NoticeServiceClient noticeServiceClient;
+    private final com.oa.approval.client.AttendanceServiceClient attendanceServiceClient;
     private final RedisUtils redisUtils;
+
+    private static final int MSG_TYPE_APPROVAL = 1;
 
     public ApprovalServiceImpl(AppApplicationMapper appApplicationMapper,
                                AppApprovalRecordMapper appApprovalRecordMapper,
                                UserServiceClient userServiceClient,
+                               com.oa.approval.client.NoticeServiceClient noticeServiceClient,
+                               com.oa.approval.client.AttendanceServiceClient attendanceServiceClient,
                                RedisUtils redisUtils) {
         this.appApplicationMapper = appApplicationMapper;
         this.appApprovalRecordMapper = appApprovalRecordMapper;
         this.userServiceClient = userServiceClient;
+        this.noticeServiceClient = noticeServiceClient;
+        this.attendanceServiceClient = attendanceServiceClient;
         this.redisUtils = redisUtils;
     }
 
@@ -62,7 +76,7 @@ public class ApprovalServiceImpl implements IApprovalService {
     public ApplicationDetailVO
     submit(ApplicationSubmitDTO dto) {
         CurrentUser currentUser = UserContextHolder.getCurrentUser();
-        UserServiceClient.UserInfo applicant = userServiceClient.requireActiveUser(currentUser.getUserId());
+        com.oa.common.remote.UserInfo applicant = userServiceClient.requireActiveUser(currentUser.getUserId());
         Long applicantDeptId = applicant.getDeptId() == null ? currentUser.getDeptId() : applicant.getDeptId();
         validateSubmitDTO(dto);
 
@@ -80,6 +94,9 @@ public class ApprovalServiceImpl implements IApprovalService {
         application.setStatus(1);
         application.setCurrentApproverId(userServiceClient.resolveApproverId(applicantDeptId, currentUser.getUserId()));
         appApplicationMapper.insert(application);
+
+        notifyApprover(application, applicant);
+
         return getDetail(application.getId());
     }
 
@@ -166,6 +183,15 @@ public class ApprovalServiceImpl implements IApprovalService {
         record.setComment(dto.getComment());
         record.setActionTime(LocalDateTime.now());
         appApprovalRecordMapper.insert(record);
+
+        notifyApplicant(application);
+
+        if (Objects.equals(application.getAppType(), 1) && Integer.valueOf(2).equals(application.getStatus())) {
+            attendanceServiceClient.markLeave(application.getUserId(),
+                    application.getStartTime().toLocalDate(),
+                    application.getEndTime().toLocalDate(),
+                    application.getId());
+        }
     }
 
     @Override
@@ -223,6 +249,103 @@ public class ApprovalServiceImpl implements IApprovalService {
                         .eq(AppApplication::getStatus, 1)
                         .orderByDesc(AppApplication::getCreateTime));
         return buildListPage(page);
+    }
+
+    @Override
+    public List<VisualApprovalStatsDTO> monthlyVisualStats(String month) {
+        List<AppApplication> applications = listVisualApplications(month);
+        if (applications.isEmpty()) {
+            return List.of();
+        }
+        Map<Long, LocalDateTime> finishTimes = finishTimes(applications);
+        Map<Long, VisualApprovalAccumulator> stats = new java.util.TreeMap<>();
+        for (AppApplication application : applications) {
+            if (application.getDeptId() == null) {
+                continue;
+            }
+            VisualApprovalAccumulator item = stats.computeIfAbsent(application.getDeptId(), ignored -> new VisualApprovalAccumulator());
+            item.totalApplications++;
+            if (Integer.valueOf(2).equals(application.getStatus())) {
+                item.approvedCount++;
+            } else if (Integer.valueOf(3).equals(application.getStatus())) {
+                item.rejectedCount++;
+            } else if (Integer.valueOf(1).equals(application.getStatus())) {
+                item.pendingCount++;
+            }
+            LocalDateTime finishTime = finishTimes.get(application.getId());
+            if ((Integer.valueOf(2).equals(application.getStatus()) || Integer.valueOf(3).equals(application.getStatus()))
+                    && application.getCreateTime() != null && finishTime != null) {
+                item.completedCount++;
+                item.totalApprovalMinutes += Math.max(0, Duration.between(application.getCreateTime(), finishTime).toMinutes());
+            }
+        }
+        return stats.entrySet().stream()
+                .map(entry -> new VisualApprovalStatsDTO(entry.getKey(), entry.getValue().totalApplications,
+                        entry.getValue().approvedCount, entry.getValue().rejectedCount, entry.getValue().pendingCount,
+                        entry.getValue().averageHours()))
+                .toList();
+    }
+
+    @Override
+    public VisualApprovalRealtimeDTO visualRealtimeStats(String month) {
+        long pendingCount = appApplicationMapper.selectCount(new LambdaQueryWrapper<AppApplication>()
+                .eq(AppApplication::getStatus, 1));
+        Map<Integer, Long> typeCounts = listVisualApplications(month).stream()
+                .filter(application -> application.getAppType() != null)
+                .collect(Collectors.groupingBy(AppApplication::getAppType, Collectors.counting()));
+        List<VisualTypeCountDTO> types = typeCounts.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .map(entry -> new VisualTypeCountDTO(entry.getKey(), entry.getValue()))
+                .toList();
+        return new VisualApprovalRealtimeDTO(pendingCount, types);
+    }
+
+    private List<AppApplication> listVisualApplications(String month) {
+        YearMonth statMonth = parseVisualMonth(month);
+        LocalDateTime startTime = statMonth.atDay(1).atStartOfDay();
+        LocalDateTime endTime = statMonth.plusMonths(1).atDay(1).atStartOfDay();
+        return appApplicationMapper.selectList(new LambdaQueryWrapper<AppApplication>()
+                .in(AppApplication::getStatus, Set.of(1, 2, 3))
+                .ge(AppApplication::getCreateTime, startTime)
+                .lt(AppApplication::getCreateTime, endTime));
+    }
+
+    private Map<Long, LocalDateTime> finishTimes(List<AppApplication> applications) {
+        List<Long> ids = applications.stream().map(AppApplication::getId).toList();
+        return appApprovalRecordMapper.selectList(new LambdaQueryWrapper<AppApprovalRecord>()
+                        .in(AppApprovalRecord::getApplicationId, ids))
+                .stream()
+                .filter(record -> record.getActionTime() != null)
+                .collect(Collectors.toMap(AppApprovalRecord::getApplicationId, AppApprovalRecord::getActionTime,
+                        (left, right) -> left.isAfter(right) ? left : right));
+    }
+
+    private YearMonth parseVisualMonth(String month) {
+        if (!StringUtils.hasText(month)) {
+            return YearMonth.now();
+        }
+        try {
+            return YearMonth.parse(month.trim());
+        } catch (DateTimeParseException ex) {
+            throw new BusinessException(ResultCode.BAD_REQUEST.getCode(), "统计月份格式应为 yyyy-MM");
+        }
+    }
+
+    private static class VisualApprovalAccumulator {
+        private int totalApplications;
+        private int approvedCount;
+        private int rejectedCount;
+        private int pendingCount;
+        private long totalApprovalMinutes;
+        private int completedCount;
+
+        private BigDecimal averageHours() {
+            if (completedCount == 0) {
+                return BigDecimal.ZERO.setScale(1, RoundingMode.HALF_UP);
+            }
+            return BigDecimal.valueOf(totalApprovalMinutes)
+                    .divide(BigDecimal.valueOf(completedCount * 60L), 1, RoundingMode.HALF_UP);
+        }
     }
 
     private void requireAdminOrHr(CurrentUser currentUser) {
@@ -431,5 +554,29 @@ public class ApprovalServiceImpl implements IApprovalService {
             case 2 -> "驳回";
             default -> "未知";
         };
+    }
+
+    private void notifyApprover(AppApplication application, com.oa.common.remote.UserInfo applicant) {
+        Long approverId = application.getCurrentApproverId();
+        if (approverId == null) {
+            return;
+        }
+        String applicantName = applicant.getRealName() != null ? applicant.getRealName() : applicant.getUsername();
+        String typeText = toAppTypeText(application.getAppType());
+        String title = "您有一条新的审批待办";
+        String content = applicantName + "提交了一条" + typeText + "申请，请及时审批。";
+        noticeServiceClient.sendMessage(approverId, title, content, MSG_TYPE_APPROVAL, application.getId());
+    }
+
+    private void notifyApplicant(AppApplication application) {
+        Long applicantId = application.getUserId();
+        if (applicantId == null) {
+            return;
+        }
+        String typeText = toAppTypeText(application.getAppType());
+        String actionText = toStatusText(application.getStatus());
+        String title = "您的申请审批结果";
+        String content = "您的" + typeText + "申请已被" + actionText + "。";
+        noticeServiceClient.sendMessage(applicantId, title, content, MSG_TYPE_APPROVAL, application.getId());
     }
 }

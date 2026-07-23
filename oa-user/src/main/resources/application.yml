@@ -26,6 +26,11 @@ spring:
         file-extension: yaml
         import-check:
           enabled: false
+oa:
+  asset-service:
+    base-url: http://oa-asset-service
+  attendance-service:
+    base-url: http://oa-attendance-service
 
 mybatis-plus:
   global-config:

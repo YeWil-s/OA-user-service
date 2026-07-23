@@ -6,6 +6,9 @@ import '../data/punch_repository.dart';
 import '../data/summary_repository.dart';
 import '../models/punch_status.dart';
 import '../models/monthly_summary.dart';
+import 'package:dio/dio.dart';
+import '../../../core/constants/api_constants.dart';
+import '../models/schedule.dart';
 
 final punchRepositoryProvider = Provider<PunchRepository>((ref) {
   return PunchRepository(ref.watch(dioProvider));
@@ -18,6 +21,7 @@ final summaryRepositoryProvider = Provider<SummaryRepository>((ref) {
 class HomeState {
   final PunchStatus punchStatus;
   final MonthlySummary monthlySummary;
+  final List<Schedule> weeklySchedules;
   final bool isLoading;
   final bool isPunching;
   final LocationResult? punchLocation; // 当前打卡定位结果
@@ -25,6 +29,7 @@ class HomeState {
   const HomeState({
     required this.punchStatus,
     required this.monthlySummary,
+    this.weeklySchedules = const [],
     this.isLoading = false,
     this.isPunching = false,
     this.punchLocation,
@@ -33,6 +38,7 @@ class HomeState {
   HomeState copyWith({
     PunchStatus? punchStatus,
     MonthlySummary? monthlySummary,
+    List<Schedule>? weeklySchedules,
     bool? isLoading,
     bool? isPunching,
     LocationResult? punchLocation,
@@ -41,6 +47,7 @@ class HomeState {
     return HomeState(
       punchStatus: punchStatus ?? this.punchStatus,
       monthlySummary: monthlySummary ?? this.monthlySummary,
+      weeklySchedules: weeklySchedules ?? this.weeklySchedules,
       isLoading: isLoading ?? this.isLoading,
       isPunching: isPunching ?? this.isPunching,
       punchLocation: clearLocation ? null : (punchLocation ?? this.punchLocation),
@@ -51,8 +58,9 @@ class HomeState {
 class HomeNotifier extends StateNotifier<HomeState> {
   final PunchRepository _punchRepo;
   final SummaryRepository _summaryRepo;
+  final Dio _dio;
 
-  HomeNotifier(this._punchRepo, this._summaryRepo)
+  HomeNotifier(this._punchRepo, this._summaryRepo, this._dio)
       : super(const HomeState(
           punchStatus: PunchStatus(status: 'not_punched'),
           monthlySummary: MonthlySummary.empty,
@@ -65,13 +73,33 @@ class HomeNotifier extends StateNotifier<HomeState> {
       final results = await Future.wait([
         _punchRepo.getTodayStatus(),
         _summaryRepo.getMonthlySummary(now.year, now.month),
+        _loadSchedules(),
       ]);
       state = HomeState(
         punchStatus: results[0] as PunchStatus,
         monthlySummary: results[1] as MonthlySummary,
+        weeklySchedules: results[2] as List<Schedule>,
       );
     } catch (_) {
       state = state.copyWith(isLoading: false);
+    }
+  }
+
+  Future<List<Schedule>> _loadSchedules() async {
+    try {
+      final now = DateTime.now();
+      final monday = now.subtract(Duration(days: now.weekday - 1));
+      final sunday = monday.add(const Duration(days: 6));
+      final fmt = (DateTime d) =>
+          '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+      final response = await _dio.get(
+        ApiConstants.attendanceSchedulesMine,
+        queryParameters: {'startDate': fmt(monday), 'endDate': fmt(sunday)},
+      );
+      final data = response.data['data'] as List<dynamic>? ?? [];
+      return data.map((e) => Schedule.fromJson(e as Map<String, dynamic>)).toList();
+    } catch (_) {
+      return [];
     }
   }
 
@@ -137,5 +165,6 @@ final homeProvider = StateNotifierProvider<HomeNotifier, HomeState>((ref) {
   return HomeNotifier(
     ref.watch(punchRepositoryProvider),
     ref.watch(summaryRepositoryProvider),
+    ref.watch(dioProvider),
   );
 });

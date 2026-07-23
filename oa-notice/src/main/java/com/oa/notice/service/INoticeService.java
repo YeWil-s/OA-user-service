@@ -29,4 +29,9 @@ public interface INoticeService {
     Long createMessage(MessageCreateRequest request);
 
     void markMessageRead(Long id);
+
+    /**
+     * 系统内部消息创建，不做权限校验。
+     */
+    Long sendSystemMessage(MessageCreateRequest request);
 }

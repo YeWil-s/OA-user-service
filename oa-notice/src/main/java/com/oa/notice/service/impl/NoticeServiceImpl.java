@@ -218,6 +218,21 @@ public class NoticeServiceImpl implements INoticeService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    public Long sendSystemMessage(MessageCreateRequest request) {
+        NoticeMessage message = new NoticeMessage();
+        message.setUserId(request.getUserId());
+        message.setTitle(request.getTitle().trim());
+        message.setContent(request.getContent());
+        message.setMsgType(request.getMsgType());
+        message.setRelatedId(request.getRelatedId());
+        message.setIsRead(NoticeConstants.READ_NO);
+        message.setCreateTime(LocalDateTime.now());
+        messageMapper.insert(message);
+        return message.getId();
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
     public void markMessageRead(Long id) {
         CurrentUser currentUser = UserContextHolder.getCurrentUser();
         NoticeMessage message = messageMapper.selectOne(new LambdaQueryWrapper<NoticeMessage>()

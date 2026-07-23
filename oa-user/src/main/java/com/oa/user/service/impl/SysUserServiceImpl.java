@@ -8,13 +8,19 @@ import com.oa.common.exception.BusinessException;
 import com.oa.common.result.ResultCode;
 import com.oa.common.utils.JwtUtils;
 import com.oa.common.utils.RedisUtils;
+import com.oa.user.client.AssetServiceClient;
+import com.oa.user.client.AttendanceServiceClient;
 import com.oa.user.dto.EmployeeDTO;
 import com.oa.user.dto.ResetPasswordDTO;
 import com.oa.user.entity.SysUser;
+import com.oa.user.entity.SysUserRole;
 import com.oa.user.mapper.SysUserMapper;
+import com.oa.user.mapper.SysUserRoleMapper;
 import com.oa.user.service.ISysUserService;
 import com.oa.user.vo.CurrentUserVO;
 import com.oa.user.vo.LoginVO;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,17 +32,28 @@ import java.util.List;
 @Service
 public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> implements ISysUserService {
 
+    private static final Logger log = LoggerFactory.getLogger(SysUserServiceImpl.class);
+
     private final SysUserMapper sysUserMapper;
     private final JwtUtils jwtUtils;
     private final BCryptPasswordEncoder passwordEncoder;
     private final RedisUtils redisUtils;
+    private final AssetServiceClient assetServiceClient;
+    private final AttendanceServiceClient attendanceServiceClient;
+    private final SysUserRoleMapper sysUserRoleMapper;
 
     public SysUserServiceImpl(SysUserMapper sysUserMapper, JwtUtils jwtUtils,
-                              BCryptPasswordEncoder passwordEncoder, RedisUtils redisUtils) {
+                              BCryptPasswordEncoder passwordEncoder, RedisUtils redisUtils,
+                              AssetServiceClient assetServiceClient,
+                              AttendanceServiceClient attendanceServiceClient,
+                              SysUserRoleMapper sysUserRoleMapper) {
         this.sysUserMapper = sysUserMapper;
         this.jwtUtils = jwtUtils;
         this.passwordEncoder = passwordEncoder;
         this.redisUtils = redisUtils;
+        this.assetServiceClient = assetServiceClient;
+        this.attendanceServiceClient = attendanceServiceClient;
+        this.sysUserRoleMapper = sysUserRoleMapper;
     }
 
     @Override
@@ -146,6 +163,32 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         user.setEntryDate(dto.getEntryDate());
         user.setStatus(dto.getStatus() != null ? dto.getStatus() : 1);
         this.save(user);
+
+        Long newUserId = user.getId();
+        assignDefaultRole(newUserId, dto.getPositionId());
+        try {
+            assetServiceClient.createArchive(newUserId);
+        } catch (Exception e) {
+            log.warn("自动创建员工档案失败: userId={}, error={}", newUserId, e.getMessage());
+        }
+        try {
+            attendanceServiceClient.assignDefaultShift(newUserId);
+        } catch (Exception e) {
+            log.warn("自动分配默认班次失败: userId={}, error={}", newUserId, e.getMessage());
+        }
+    }
+
+    private void assignDefaultRole(Long userId, Long positionId) {
+        Long roleId = switch (positionId != null ? positionId.intValue() : 0) {
+            case 1 -> 1L;  // 总经理 → ROLE_ADMIN
+            case 5 -> 2L;  // HR经理 → ROLE_HR
+            case 2, 7, 8 -> 3L;  // 技术总监/财务经理/市场经理 → ROLE_LEADER
+            default -> 4L; // 其他 → ROLE_EMPLOYEE
+        };
+        SysUserRole userRole = new SysUserRole();
+        userRole.setUserId(userId);
+        userRole.setRoleId(roleId);
+        sysUserRoleMapper.insert(userRole);
     }
 
     @Override

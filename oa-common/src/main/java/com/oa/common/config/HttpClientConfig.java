@@ -1,4 +1,4 @@
-package com.oa.approval.config;
+package com.oa.common.config;
 
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.boot.web.client.RestTemplateBuilder;

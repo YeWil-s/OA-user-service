@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
+import 'features/ai_chat/providers/chat_provider.dart';
 import 'features/auth/providers/auth_providers.dart';
 
 class AppShell extends ConsumerWidget {
@@ -18,7 +19,7 @@ class AppShell extends ConsumerWidget {
     final navItems = <NavItem>[
       const NavItem(icon: Icons.home_outlined, selectedIcon: Icons.home, label: '首页', path: '/home'),
       const NavItem(icon: Icons.notifications_outlined, selectedIcon: Icons.notifications, label: '消息', path: '/messages'),
-      const NavItem(icon: Icons.assignment_outlined, selectedIcon: Icons.assignment, label: '审批', path: '/applications', altPath: '/pending'),
+      const NavItem(icon: Icons.edit_calendar_outlined, selectedIcon: Icons.edit_calendar, label: '申请', path: '/applications', altPath: '/pending'),
       const NavItem(icon: Icons.person_outlined, selectedIcon: Icons.person, label: '我的', path: '/profile'),
     ];
 
@@ -81,6 +82,10 @@ class _AppState extends ConsumerState<App> {
       final isLoggedIn = next.valueOrNull != null;
       if (wasLoggedIn != isLoggedIn) {
         authChangeNotifier.value = isLoggedIn;
+        if (!isLoggedIn) {
+          ref.invalidate(chatProvider);
+          ref.invalidate(conversationListProvider);
+        }
       }
     });
 

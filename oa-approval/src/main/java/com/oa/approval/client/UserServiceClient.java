@@ -1,6 +1,9 @@
 package com.oa.approval.client;
 
 import com.oa.common.exception.BusinessException;
+import com.oa.common.remote.DeptInfo;
+import com.oa.common.remote.RemoteResult;
+import com.oa.common.remote.UserInfo;
 import com.oa.common.result.ResultCode;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
@@ -91,7 +94,6 @@ public class UserServiceClient {
         if (isUsableApprover(1L, applicantUserId)) {
             return 1L;
         }
-        // 整个部门链都没有可用审批人时，回退到超级管理员
         return 1L;
     }
 
@@ -151,57 +153,5 @@ public class UserServiceClient {
             return value.substring(0, value.length() - 1);
         }
         return value;
-    }
-
-    public static class RemoteResult<T> {
-        private int code;
-        private String message;
-        private T data;
-
-        public int getCode() { return code; }
-        public void setCode(int code) { this.code = code; }
-        public String getMessage() { return message; }
-        public void setMessage(String message) { this.message = message; }
-        public T getData() { return data; }
-        public void setData(T data) { this.data = data; }
-    }
-
-    public static class UserInfo {
-        private Long id;
-        private String username;
-        private String realName;
-        private Long deptId;
-        private Integer status;
-
-        public Long getId() { return id; }
-        public void setId(Long id) { this.id = id; }
-        public String getUsername() { return username; }
-        public void setUsername(String username) { this.username = username; }
-        public String getRealName() { return realName; }
-        public void setRealName(String realName) { this.realName = realName; }
-        public Long getDeptId() { return deptId; }
-        public void setDeptId(Long deptId) { this.deptId = deptId; }
-        public Integer getStatus() { return status; }
-        public void setStatus(Integer status) { this.status = status; }
-        public boolean isActive() { return !Integer.valueOf(0).equals(status); }
-    }
-
-    public static class DeptInfo {
-        private Long id;
-        private Long parentId;
-        private String deptName;
-        private Long leaderId;
-        private List<DeptInfo> children = new ArrayList<>();
-
-        public Long getId() { return id; }
-        public void setId(Long id) { this.id = id; }
-        public Long getParentId() { return parentId; }
-        public void setParentId(Long parentId) { this.parentId = parentId; }
-        public String getDeptName() { return deptName; }
-        public void setDeptName(String deptName) { this.deptName = deptName; }
-        public Long getLeaderId() { return leaderId; }
-        public void setLeaderId(Long leaderId) { this.leaderId = leaderId; }
-        public List<DeptInfo> getChildren() { return children; }
-        public void setChildren(List<DeptInfo> children) { this.children = children; }
     }
 }

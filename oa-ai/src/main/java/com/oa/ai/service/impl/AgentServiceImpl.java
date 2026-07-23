@@ -60,7 +60,7 @@ public class AgentServiceImpl implements AgentService {
         if ("confirm".equals(action)) {
             Map<String, Object> formData = sessionForms.remove(sid);
             if (formData == null) {
-                return ragService.answerQuestion(message, userRoles, userId, sid);
+                return ragService.answerQuestion(message, userRoles, userId, deptId, null, sid);
             }
             return confirmAndSubmit(formData, userId, deptId, sid);
         }
@@ -106,7 +106,7 @@ public class AgentServiceImpl implements AgentService {
                     intentJson = OBJECT_MAPPER.readTree(intentResult);
                 } catch (Exception e) {
                     log.warn("Failed to parse intent JSON, falling back to rag: {}", intentResult);
-                    ragService.answerQuestion(message, userRoles, userId, sid)
+                    ragService.answerQuestion(message, userRoles, userId, deptId, null, sid)
                             .subscribe(sink::tryEmitNext, sink::tryEmitError, sink::tryEmitComplete);
                     return;
                 }
@@ -131,7 +131,7 @@ public class AgentServiceImpl implements AgentService {
                         }
                     }
                     case "KNOWLEDGE_QA" -> {
-                        ragService.answerQuestion(message, userRoles, userId, sid)
+                        ragService.answerQuestion(message, userRoles, userId, deptId, null, sid)
                                 .subscribe(sink::tryEmitNext, sink::tryEmitError, sink::tryEmitComplete);
                     }
                     default -> {

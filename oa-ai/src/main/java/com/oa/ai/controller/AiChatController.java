@@ -32,13 +32,15 @@ public class AiChatController {
         Long userId = (Long) request.getAttribute("userId");
         @SuppressWarnings("unchecked")
         List<String> roles = (List<String>) request.getAttribute("roles");
+        Long deptId = (Long) request.getAttribute("deptId");
+        Long positionId = (Long) request.getAttribute("positionId");
 
         if (sessionId == null || sessionId.isBlank()) {
             sessionId = UUID.randomUUID().toString();
         }
 
         String sid = sessionId;
-        return ragService.answerQuestion(question, roles, userId, sid);
+        return ragService.answerQuestion(question, roles, userId, deptId, positionId, sid);
     }
 
     @Operation(summary = "RAG智能问答（POST SSE流式）")
@@ -48,6 +50,8 @@ public class AiChatController {
         Long userId = (Long) request.getAttribute("userId");
         @SuppressWarnings("unchecked")
         List<String> roles = (List<String>) request.getAttribute("roles");
+        Long deptId = (Long) request.getAttribute("deptId");
+        Long positionId = (Long) request.getAttribute("positionId");
 
         String sessionId = dto.getSessionId();
         if (sessionId == null || sessionId.isBlank()) {
@@ -55,6 +59,6 @@ public class AiChatController {
         }
 
         String sid = sessionId;
-        return ragService.answerQuestion(dto.getQuestion(), roles, userId, sid);
+        return ragService.answerQuestion(dto.getQuestion(), roles, userId, deptId, positionId, sid);
     }
 }

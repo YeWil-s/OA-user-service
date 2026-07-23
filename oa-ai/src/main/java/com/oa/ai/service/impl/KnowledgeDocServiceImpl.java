@@ -32,6 +32,8 @@ import java.util.stream.Collectors;
 public class KnowledgeDocServiceImpl extends ServiceImpl<KnowledgeDocMapper, KnowledgeDoc> implements IKnowledgeDocService {
 
     private static final Logger log = LoggerFactory.getLogger(KnowledgeDocServiceImpl.class);
+    private static final int VECTOR_OK = 1;
+    private static final int VECTOR_FAIL = 2;
 
     private final KnowledgeDocTagMapper docTagMapper;
     private final KnowledgeTagMapper tagMapper;
@@ -53,6 +55,12 @@ public class KnowledgeDocServiceImpl extends ServiceImpl<KnowledgeDocMapper, Kno
         if (dto.getCategory() != null) {
             wrapper.eq(KnowledgeDoc::getCategory, dto.getCategory());
         }
+        if (dto.getDeptId() != null) {
+            wrapper.eq(KnowledgeDoc::getDeptId, dto.getDeptId());
+        }
+        if (dto.getVectorStatus() != null) {
+            wrapper.eq(KnowledgeDoc::getVectorStatus, dto.getVectorStatus());
+        }
         if (dto.getKeyword() != null && !dto.getKeyword().isBlank()) {
             wrapper.and(w -> w.like(KnowledgeDoc::getTitle, dto.getKeyword())
                     .or().like(KnowledgeDoc::getSummary, dto.getKeyword()));
@@ -61,8 +69,7 @@ public class KnowledgeDocServiceImpl extends ServiceImpl<KnowledgeDocMapper, Kno
 
         Page<KnowledgeDoc> page = new Page<>(dto.getPageNum(), dto.getPageSize());
         IPage<KnowledgeDoc> docPage = baseMapper.selectPage(page, wrapper);
-
-        return docPage.convert(doc -> toVO(doc));
+        return docPage.convert(this::toVO);
     }
 
     @Override
@@ -77,28 +84,11 @@ public class KnowledgeDocServiceImpl extends ServiceImpl<KnowledgeDocMapper, Kno
     @Override
     @Transactional
     public void createDoc(KnowledgeDocDTO dto, Long userId) {
-        KnowledgeDoc doc = new KnowledgeDoc();
-        doc.setTitle(dto.getTitle());
-        doc.setContent(dto.getContent());
-        doc.setSummary(dto.getSummary());
-        doc.setCategory(dto.getCategory());
-        doc.setStatus(1);
-        doc.setCreateBy(userId);
-
-        if (dto.getAccessRoles() != null && !dto.getAccessRoles().isEmpty()) {
-            doc.setAccessRoles(toJsonArray(dto.getAccessRoles()));
-        } else {
-            doc.setAccessRoles("[\"ROLE_EMPLOYEE\",\"ROLE_LEADER\",\"ROLE_HR\",\"ROLE_ADMIN\"]");
-        }
-
+        KnowledgeDoc doc = buildDoc(dto, userId, 1, 0, null);
         baseMapper.insert(doc);
-
-        if (dto.getTagIds() != null && !dto.getTagIds().isEmpty()) {
-            saveDocTags(doc.getId(), dto.getTagIds());
-        }
-
+        saveTagsIfNeeded(doc.getId(), dto.getTagIds());
         try {
-            syncEmbedding(doc);
+            syncEmbedding(doc.getId());
         } catch (Exception e) {
             log.error("Failed to sync embedding for new doc id={}: {}", doc.getId(), e.getMessage());
         }
@@ -116,23 +106,23 @@ public class KnowledgeDocServiceImpl extends ServiceImpl<KnowledgeDocMapper, Kno
         doc.setContent(dto.getContent());
         doc.setSummary(dto.getSummary());
         doc.setCategory(dto.getCategory());
-
-        if (dto.getAccessRoles() != null && !dto.getAccessRoles().isEmpty()) {
-            doc.setAccessRoles(toJsonArray(dto.getAccessRoles()));
-        }
-
+        doc.setDeptId(dto.getDeptId());
+        doc.setAccessRoles(defaultAccessRoles(dto.getAccessRoles()));
+        doc.setAccessPositions(toJsonArray(dto.getAccessPositions()));
+        doc.setAccessDepts(toJsonArray(dto.getAccessDepts()));
+        doc.setAccessMode(dto.getAccessMode() != null ? dto.getAccessMode() : 0);
+        doc.setVersion(doc.getVersion() == null ? 2 : doc.getVersion() + 1);
+        doc.setVectorStatus(0);
+        doc.setVectorError(null);
         baseMapper.updateById(doc);
 
         if (dto.getTagIds() != null) {
             docTagMapper.deleteByDocId(id);
-            if (!dto.getTagIds().isEmpty()) {
-                saveDocTags(id, dto.getTagIds());
-            }
+            saveTagsIfNeeded(id, dto.getTagIds());
         }
 
         try {
-            vectorStoreService.delete(id);
-            syncEmbedding(doc);
+            syncEmbedding(id);
         } catch (Exception e) {
             log.error("Failed to sync embedding for updated doc id={}: {}", id, e.getMessage());
         }
@@ -144,11 +134,21 @@ public class KnowledgeDocServiceImpl extends ServiceImpl<KnowledgeDocMapper, Kno
         if (doc == null || doc.getStatus() == 0) {
             return;
         }
-        syncEmbedding(doc);
+        try {
+            syncEmbedding(doc);
+            doc.setVectorStatus(VECTOR_OK);
+            doc.setVectorError(null);
+            baseMapper.updateById(doc);
+        } catch (Exception e) {
+            doc.setVectorStatus(VECTOR_FAIL);
+            doc.setVectorError(truncate(e.getMessage(), 500));
+            baseMapper.updateById(doc);
+            throw e;
+        }
     }
 
     private void syncEmbedding(KnowledgeDoc doc) {
-        String text = doc.getTitle() + "\n\n" + doc.getContent();
+        String text = safe(doc.getTitle()) + "\n\n" + safe(doc.getContent());
         float[] embedding = embeddingService.embed(text);
 
         List<Long> tagIds = docTagMapper.selectTagIdsByDocId(doc.getId());
@@ -158,13 +158,14 @@ public class KnowledgeDocServiceImpl extends ServiceImpl<KnowledgeDocMapper, Kno
             tags = tagList.stream().map(KnowledgeTag::getTagCode).collect(Collectors.joining(","));
         }
 
-        String accessRoles = doc.getAccessRoles();
-        if (accessRoles != null && accessRoles.startsWith("[")) {
-            accessRoles = accessRoles.replace("[", "").replace("]", "").replace("\"", "").replace(" ", "");
+        if (doc.getVersion() == null) {
+            doc.setVersion(1);
         }
-
-        vectorStoreService.store(doc.getId(), doc.getTitle(), doc.getContent(),
-                String.valueOf(doc.getCategory()), tags, accessRoles, embedding);
+        if (doc.getAccessMode() == null) {
+            doc.setAccessMode(0);
+        }
+        doc.setVectorStatus(VECTOR_OK);
+        vectorStoreService.store(doc, tags, embedding);
     }
 
     @Override
@@ -192,7 +193,10 @@ public class KnowledgeDocServiceImpl extends ServiceImpl<KnowledgeDocMapper, Kno
         for (KnowledgeDoc doc : docs) {
             try {
                 vectorStoreService.delete(doc.getId());
-                syncEmbedding(doc);
+                doc.setVectorStatus(0);
+                doc.setVectorError(null);
+                baseMapper.updateById(doc);
+                syncEmbedding(doc.getId());
             } catch (Exception e) {
                 log.error("Failed to reindex doc id={}: {}", doc.getId(), e.getMessage());
             }
@@ -200,7 +204,29 @@ public class KnowledgeDocServiceImpl extends ServiceImpl<KnowledgeDocMapper, Kno
         log.info("Full reindex completed");
     }
 
-    private void saveDocTags(Long docId, List<Long> tagIds) {
+    private KnowledgeDoc buildDoc(KnowledgeDocDTO dto, Long userId, int version, int vectorStatus, String vectorError) {
+        KnowledgeDoc doc = new KnowledgeDoc();
+        doc.setTitle(dto.getTitle());
+        doc.setContent(dto.getContent());
+        doc.setSummary(dto.getSummary());
+        doc.setCategory(dto.getCategory());
+        doc.setDeptId(dto.getDeptId());
+        doc.setAccessRoles(toJsonArray(dto.getAccessRoles()));
+        doc.setAccessPositions(toJsonArray(dto.getAccessPositions()));
+        doc.setAccessDepts(toJsonArray(dto.getAccessDepts()));
+        doc.setAccessMode(dto.getAccessMode() != null ? dto.getAccessMode() : 0);
+        doc.setVersion(version);
+        doc.setVectorStatus(vectorStatus);
+        doc.setVectorError(vectorError);
+        doc.setStatus(1);
+        doc.setCreateBy(userId);
+        return doc;
+    }
+
+    private void saveTagsIfNeeded(Long docId, List<Long> tagIds) {
+        if (tagIds == null || tagIds.isEmpty()) {
+            return;
+        }
         for (Long tagId : tagIds) {
             KnowledgeDocTag dt = new KnowledgeDocTag();
             dt.setDocId(docId);
@@ -216,6 +242,14 @@ public class KnowledgeDocServiceImpl extends ServiceImpl<KnowledgeDocMapper, Kno
         vo.setSummary(doc.getSummary());
         vo.setCategory(doc.getCategory());
         vo.setCategoryDesc(getCategoryDesc(doc.getCategory()));
+        vo.setDeptId(doc.getDeptId());
+        vo.setAccessRoles(parseStringList(doc.getAccessRoles()));
+        vo.setAccessPositions(parseLongList(doc.getAccessPositions()));
+        vo.setAccessDepts(parseLongList(doc.getAccessDepts()));
+        vo.setAccessMode(doc.getAccessMode());
+        vo.setVersion(doc.getVersion());
+        vo.setVectorStatus(doc.getVectorStatus());
+        vo.setVectorError(doc.getVectorError());
         vo.setStatus(doc.getStatus());
         vo.setCreateTime(doc.getCreateTime());
         vo.setUpdateTime(doc.getUpdateTime());
@@ -227,13 +261,6 @@ public class KnowledgeDocServiceImpl extends ServiceImpl<KnowledgeDocMapper, Kno
         } else {
             vo.setTagNames(new ArrayList<>());
         }
-
-        String roles = doc.getAccessRoles();
-        if (roles != null && roles.startsWith("[")) {
-            roles = roles.replace("[", "").replace("]", "").replace("\"", "");
-            vo.setAccessRoles(List.of(roles.split(",")));
-        }
-
         return vo;
     }
 
@@ -244,7 +271,58 @@ public class KnowledgeDocServiceImpl extends ServiceImpl<KnowledgeDocMapper, Kno
         return "未知";
     }
 
-    private String toJsonArray(List<String> list) {
-        return "[" + list.stream().map(s -> "\"" + s + "\"").collect(Collectors.joining(",")) + "]";
+    private String toJsonArray(List<?> list) {
+        if (list == null || list.isEmpty()) {
+            return null;
+        }
+        return "[" + list.stream().map(String::valueOf).map(s -> "\"" + s + "\"").collect(Collectors.joining(",")) + "]";
+    }
+
+    private String defaultAccessRoles(List<String> roles) {
+        if (roles == null || roles.isEmpty()) {
+            return "[\"ROLE_EMPLOYEE\",\"ROLE_LEADER\",\"ROLE_HR\",\"ROLE_ADMIN\"]";
+        }
+        return toJsonArray(roles);
+    }
+
+    private List<String> parseStringList(String json) {
+        if (json == null || json.isBlank()) {
+            return new ArrayList<>();
+        }
+        String cleaned = json.replace("[", "").replace("]", "").replace("\"", "").trim();
+        if (cleaned.isBlank()) {
+            return new ArrayList<>();
+        }
+        String[] parts = cleaned.split(",");
+        List<String> result = new ArrayList<>();
+        for (String part : parts) {
+            if (!part.isBlank()) {
+                result.add(part.trim());
+            }
+        }
+        return result;
+    }
+
+    private List<Long> parseLongList(String json) {
+        List<String> strings = parseStringList(json);
+        List<Long> result = new ArrayList<>();
+        for (String s : strings) {
+            try {
+                result.add(Long.valueOf(s));
+            } catch (Exception ignored) {
+            }
+        }
+        return result;
+    }
+
+    private String safe(String value) {
+        return value == null ? "" : value;
+    }
+
+    private String truncate(String value, int maxLen) {
+        if (value == null) {
+            return null;
+        }
+        return value.length() <= maxLen ? value : value.substring(0, maxLen);
     }
 }

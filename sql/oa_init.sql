@@ -211,6 +211,20 @@ CREATE TABLE user_shift (
     UNIQUE KEY uk_user_id (user_id)
 ) ENGINE=InnoDB COMMENT='用户班次关联表';
 
+-- 每日排班表
+DROP TABLE IF EXISTS att_schedule;
+CREATE TABLE att_schedule (
+    id            BIGINT   NOT NULL AUTO_INCREMENT COMMENT '主键',
+    user_id       BIGINT   NOT NULL             COMMENT '员工ID',
+    schedule_date DATE     NOT NULL             COMMENT '排班日期',
+    shift_id      BIGINT   NOT NULL             COMMENT '班次ID',
+    status        TINYINT  DEFAULT 1            COMMENT '1=正常 2=请假',
+    create_time   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    update_time   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_user_date (user_id, schedule_date)
+) ENGINE=InnoDB COMMENT='每日排班表';
+
 -- ============================================================
 -- 4. approval_db: 审批流程
 -- ============================================================

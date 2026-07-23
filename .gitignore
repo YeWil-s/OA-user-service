@@ -41,3 +41,6 @@ package-lock.json
 
 ### AI module secrets ###
 oa-ai/src/main/resources/application.yml
+
+### Environment secrets ###
+.env

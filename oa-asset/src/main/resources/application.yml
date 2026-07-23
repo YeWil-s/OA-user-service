@@ -20,11 +20,14 @@ spring:
         file-extension: yaml
         import-check:
           enabled: false
-
 mybatis-plus:
   configuration:
     map-underscore-to-camel-case: true
     log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+oa:
+  notice-service:
+    base-url: http://oa-notice-service
 
 knife4j:
   enable: true

@@ -2,17 +2,29 @@ package com.oa.attendance.controller;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.oa.attendance.dto.AttendanceRecordQueryDTO;
+import com.oa.attendance.dto.LeaveDTO;
 import com.oa.attendance.dto.PunchDTO;
+import com.oa.attendance.dto.ScheduleDTO;
 import com.oa.attendance.dto.ShiftDTO;
 import com.oa.attendance.dto.UserShiftDTO;
+import com.oa.attendance.dto.VisualAttendanceStatsDTO;
+import com.oa.attendance.dto.VisualTodayAttendanceDTO;
 import com.oa.attendance.service.IAttendanceService;
+import com.oa.attendance.service.IMonthlySummaryService;
 import com.oa.attendance.vo.AttendanceRecordVO;
 import com.oa.attendance.vo.PunchVO;
+import com.oa.attendance.vo.ScheduleVO;
 import com.oa.attendance.vo.ShiftVO;
+import com.oa.attendance.vo.UserShiftVO;
+import com.oa.attendance.vo.MonthlyAttendanceVO;
 import com.oa.common.result.Result;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+
+import java.time.LocalDate;
+import java.util.List;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -31,9 +43,12 @@ import org.springframework.web.bind.annotation.RestController;
 public class AttendanceController {
 
     private final IAttendanceService attendanceService;
+    private final IMonthlySummaryService monthlySummaryService;
 
-    public AttendanceController(IAttendanceService attendanceService) {
+    public AttendanceController(IAttendanceService attendanceService,
+                                 IMonthlySummaryService monthlySummaryService) {
         this.attendanceService = attendanceService;
+        this.monthlySummaryService = monthlySummaryService;
     }
 
     @Operation(summary = "班次分页列表")
@@ -103,5 +118,81 @@ public class AttendanceController {
     @GetMapping("/records/all")
     public Result<IPage<AttendanceRecordVO>> allRecords(@Valid AttendanceRecordQueryDTO dto) {
         return Result.success(attendanceService.allRecords(dto));
+    }
+
+    @Operation(summary = "批量标记请假")
+    @PostMapping("/leave")
+    public Result<Void> markLeave(@Valid @RequestBody LeaveDTO dto) {
+        attendanceService.markLeave(dto);
+        return Result.success();
+    }
+
+    @Operation(summary = "取消请假标记")
+    @DeleteMapping("/leave/{applicationId}")
+    public Result<Void> cancelLeave(@PathVariable Long applicationId) {
+        attendanceService.cancelLeave(applicationId);
+        return Result.success();
+    }
+
+    @Operation(summary = "部门月考勤汇总")
+    @GetMapping("/records/monthly-summary")
+    public Result<List<MonthlyAttendanceVO>> monthlySummary(@RequestParam String month) {
+        return Result.success(monthlySummaryService.monthlyAttendanceSummary(month));
+    }
+
+    @Operation(summary = "我的排班")
+    @GetMapping("/schedules/mine")
+    public Result<List<ScheduleVO>> mySchedules(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        return Result.success(attendanceService.mySchedules(startDate, endDate));
+    }
+
+    @Operation(summary = "部门排班查看")
+    @GetMapping("/schedules/dept")
+    public Result<List<ScheduleVO>> deptSchedules(
+            @RequestParam Long deptId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        return Result.success(attendanceService.deptSchedules(deptId, startDate, endDate));
+    }
+
+    @Operation(summary = "指定用户排班（管理员）")
+    @GetMapping("/schedules/user/{userId}")
+    public Result<List<ScheduleVO>> userSchedules(
+            @PathVariable Long userId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        return Result.success(attendanceService.userSchedules(userId, startDate, endDate));
+    }
+
+    @Operation(summary = "批量排班")
+    @PostMapping("/schedules")
+    public Result<Void> batchSchedule(@Valid @RequestBody ScheduleDTO dto) {
+        attendanceService.batchSchedule(dto.getItems());
+        return Result.success();
+    }
+
+    @Operation(summary = "所有人员默认班次")
+    @GetMapping("/user-shifts/all")
+    public Result<List<UserShiftVO>> allUserShifts() {
+        return Result.success(attendanceService.allUserShifts());
+    }
+
+    @Operation(summary = "手动生成每日考勤汇总")
+    @PostMapping("/daily-summary/generate")
+    public Result<Void> generateDailySummary(@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        attendanceService.generateDailySummary(date);
+        return Result.success();
+    }
+
+    @GetMapping("/internal/visual/monthly")
+    public Result<List<VisualAttendanceStatsDTO>> monthlyVisualStats(@RequestParam(required = false) String month) {
+        return Result.success(attendanceService.monthlyVisualStats(month));
+    }
+
+    @GetMapping("/internal/visual/today")
+    public Result<VisualTodayAttendanceDTO> todayVisualStats() {
+        return Result.success(attendanceService.todayVisualStats());
     }
 }
