@@ -117,6 +117,56 @@
           </div>
         </section>
       </div>
+      <div v-else-if="moduleKey === 'applications' || moduleKey === 'processedApplications'" class="approval-detail">
+        <header class="approval-profile">
+          <span class="approval-avatar"><FileText /></span>
+          <div>
+            <span class="detail-eyebrow">{{ detailData?.applicationNo || '-' }}</span>
+            <h3>{{ detailData?.applicantName || '-' }}</h3>
+            <p>{{ detailData?.deptName || '-' }} · {{ detailData?.createTime?.slice(0, 10) || '-' }}</p>
+          </div>
+          <span class="approval-status" :class="approvalStatusClass(detailData?.status)">{{ detailData?.statusText || '-' }}</span>
+        </header>
+
+        <section class="detail-section">
+          <header><Info /><div><strong>申请信息</strong><span>APPLICATION DETAILS</span></div></header>
+          <div class="detail-grid cols-4">
+            <div><span>申请类型</span><strong>{{ detailData?.appTypeText || '-' }}</strong></div>
+            <div v-if="detailData?.appType === 1"><span>请假类别</span><strong>{{ detailData?.leaveTypeText || '-' }}</strong></div>
+            <div v-if="[1,2,3].includes(detailData?.appType as number)"><span>开始时间</span><strong>{{ formatDate(detailData?.startTime) }}</strong></div>
+            <div v-if="[1,2,3].includes(detailData?.appType as number)"><span>结束时间</span><strong>{{ formatDate(detailData?.endTime) }}</strong></div>
+            <div v-if="[1,2,3].includes(detailData?.appType as number)"><span>时长</span><strong>{{ detailData?.duration }} 小时</strong></div>
+            <div v-if="detailData?.appType === 4"><span>调至部门</span><strong>{{ detailData?.targetDeptName || '-' }}</strong></div>
+            <div v-if="detailData?.appType === 4"><span>调至岗位</span><strong>{{ detailData?.targetPositionName || '-' }}</strong></div>
+            <div v-if="detailData?.appType === 5"><span>资产名称</span><strong>{{ detailData?.assetName || '-' }}</strong></div>
+            <div v-if="detailData?.appType === 5"><span>资产编码</span><strong>{{ detailData?.assetCode || '-' }}</strong></div>
+            <div><span>提交时间</span><strong>{{ formatDate(detailData?.createTime) }}</strong></div>
+            <div v-if="detailData?.reason"><span>申请原因</span><strong>{{ detailData?.reason }}</strong></div>
+          </div>
+        </section>
+
+        <section v-if="detailData?.timeline?.length" class="detail-section">
+          <header><Clock3 /><div><strong>审批时间线</strong><span>APPROVAL TIMELINE</span></div></header>
+          <div class="approval-timeline">
+            <div v-for="(item, idx) in detailData.timeline" :key="item.id" class="tl-item" :class="{ 'tl-active': idx === 0 }">
+              <span class="tl-node" :class="tlNodeClass(item.action)">{{ tlNodeIcon(item.action) }}</span>
+              <div class="tl-body">
+                <div class="tl-head">
+                  <strong>{{ item.approverName }}</strong>
+                  <span class="tl-action">{{ item.actionText }}</span>
+                  <time>{{ formatDate(item.actionTime) }}</time>
+                </div>
+                <p v-if="item.comment" class="tl-comment">{{ item.comment }}</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section v-if="detailData" class="detail-section">
+          <header><Hash /><div><strong>详细信息</strong><span>RAW DATA</span></div></header>
+          <pre class="detail-json-compact">{{ detailText }}</pre>
+        </section>
+      </div>
       <pre v-else class="detail-json">{{ detailText }}</pre>
       <template #footer><button class="btn primary" @click="detailOpen = false">关闭</button></template>
     </ModalDialog>
@@ -124,7 +174,7 @@
 </template>
 
 <script setup lang="ts">
-import { BriefcaseBusiness, CheckCircle2, Clock3, Eye, MapPin, Monitor, Pencil, Plus, RefreshCw, Timer, Trash2, UserRound } from 'lucide-vue-next'
+import { BriefcaseBusiness, CheckCircle2, Clock3, Eye, FileText, Hash, Info, MapPin, Monitor, Pencil, Plus, RefreshCw, Timer, Trash2, UserRound } from 'lucide-vue-next'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import ModalDialog from '@/components/ModalDialog.vue'
@@ -270,6 +320,27 @@ const appStatusText = (value?: number) => ({ 0: '草稿', 1: '审批中', 2: '�
 const assetCategoryText = (value?: number | string) => ({ 1: '固定资产', 2: '办公用品', 3: '电子设备' }[Number(value)] || String(value || '-'))
 const assetStatusText = (value?: number) => ({ 0: '已报废', 1: '可领用', 2: '已领用' }[value ?? 1])
 const timeText = (value?: string | null) => value ? (value.includes('T') ? value.slice(11, 19) : value) : '-'
+
+function formatDate(value?: string | null) {
+  if (!value) return '-'
+  if (value.includes('T')) return value.slice(0, 16).replace('T', ' ')
+  return value
+}
+
+function approvalStatusClass(status?: unknown) {
+  return { 1: 'status-pending', 2: 'status-approved', 3: 'status-rejected', 4: 'status-cancelled' }[String(status)] || ''
+}
+
+const actionIconMap: Record<number, string> = { 1: '✓', 2: '✓', 3: '✗' }
+
+function tlNodeClass(action?: unknown) {
+  const v = Number(action)
+  return { 1: 'tl-submit', 2: 'tl-approved', 3: 'tl-rejected' }[v] || ''
+}
+
+function tlNodeIcon(action?: unknown) {
+  return actionIconMap[Number(action)] || '●'
+}
 
 function rowValue(row: TableRow, key: string) {
   return row[key] ?? '-'
@@ -764,6 +835,209 @@ onMounted(load)
   white-space: pre-wrap;
 }
 
+/* ---- approval detail ---- */
+
+.approval-detail {
+  display: grid;
+  gap: 22px;
+}
+
+.approval-profile {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.approval-avatar {
+  width: 50px;
+  height: 50px;
+  display: grid;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--primary) 32%, var(--border));
+  border-radius: 8px;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--primary) 18%, transparent), color-mix(in srgb, var(--violet) 12%, transparent));
+  color: var(--primary-soft);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 10px 24px var(--primary-glow);
+}
+
+.approval-avatar svg {
+  width: 23px;
+  height: 23px;
+}
+
+.approval-profile h3 {
+  margin: 5px 0 0;
+  color: var(--text);
+  font-size: 19px;
+}
+
+.approval-profile p {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.approval-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.status-pending {
+  border: 1px solid color-mix(in srgb, var(--warning) 24%, var(--border));
+  background: color-mix(in srgb, var(--warning) 10%, transparent);
+  color: var(--warning);
+}
+
+.status-approved {
+  border: 1px solid color-mix(in srgb, var(--success) 24%, var(--border));
+  background: color-mix(in srgb, var(--success) 10%, transparent);
+  color: var(--success);
+}
+
+.status-rejected {
+  border: 1px solid color-mix(in srgb, var(--error) 24%, var(--border));
+  background: color-mix(in srgb, var(--error) 10%, transparent);
+  color: var(--error);
+}
+
+.status-cancelled {
+  border: 1px solid color-mix(in srgb, var(--muted) 24%, var(--border));
+  background: color-mix(in srgb, var(--muted) 10%, transparent);
+  color: var(--muted);
+}
+
+.cols-4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+/* approval timeline */
+
+.approval-timeline {
+  position: relative;
+  display: grid;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--surface-soft) 72%, transparent);
+  overflow: hidden;
+}
+
+.tl-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  padding: 13px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.tl-item:last-child {
+  border-bottom: 0;
+}
+
+.tl-active {
+  background: color-mix(in srgb, var(--primary) 6%, transparent);
+}
+
+.tl-node {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 700;
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.tl-active .tl-node {
+  border-color: var(--primary-soft);
+  color: var(--primary-soft);
+  box-shadow: 0 0 10px var(--primary-glow);
+}
+
+.tl-submit {
+  border-color: var(--info) !important;
+  color: var(--info) !important;
+}
+
+.tl-approved {
+  border-color: var(--success) !important;
+  color: var(--success) !important;
+}
+
+.tl-rejected {
+  border-color: var(--error) !important;
+  color: var(--error) !important;
+}
+
+.tl-body {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.tl-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.tl-head strong {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.tl-action {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+  color: var(--primary-soft);
+}
+
+.tl-head time {
+  color: var(--faint);
+  font-size: 10px;
+  margin-left: auto;
+}
+
+.tl-comment {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 5px;
+  background: var(--surface-soft);
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.detail-json-compact {
+  max-height: 260px;
+  overflow: auto;
+  margin: 0;
+  padding: 10px;
+  border-radius: 5px;
+  background: var(--surface-soft);
+  color: var(--faint);
+  font-size: 10px;
+  white-space: pre-wrap;
+}
+
 @media (max-width: 640px) {
   .attendance-profile {
     grid-template-columns: auto minmax(0, 1fr);
@@ -803,6 +1077,24 @@ onMounted(load)
     width: 1px;
     height: 18px;
     margin: 0 0 0 4px;
+  }
+
+  .approval-profile {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .approval-status {
+    grid-column: 1 / -1;
+    width: max-content;
+  }
+
+  .cols-4 {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .tl-head time {
+    margin-left: 0;
+    width: 100%;
   }
 }
 </style>

@@ -189,7 +189,12 @@ onBeforeUnmount(() => {})
     <div v-if="confirmation" class="confirm-bar">
       <div class="confirm-info">
         <FileCheck2 />
-        <pre>{{ JSON.stringify(confirmation, null, 2) }}</pre>
+        <div class="confirm-fields">
+            <div v-for="(v, k) in confirmation" :key="k" class="confirm-field">
+              <span class="cf-label">{{ k }}</span>
+              <span class="cf-value">{{ typeof v === 'object' ? JSON.stringify(v) : String(v) }}</span>
+            </div>
+          </div>
       </div>
       <button class="btn primary" :disabled="loading" @click="send('confirm')">确认提交</button>
     </div>
@@ -374,7 +379,11 @@ onBeforeUnmount(() => {})
 }
 .confirm-info { flex: 1; min-width: 0; display: flex; gap: 8px; color: var(--warning); font-size: 12px; }
 .confirm-info svg { width: 16px; flex-shrink: 0; margin-top: 2px; }
-.confirm-info pre { margin: 0; overflow: auto; max-height: 100px; font-size: 10px; white-space: pre-wrap; color: var(--text); }
+.confirm-fields { overflow: auto; max-height: 120px; display: grid; gap: 6px; }
+.confirm-field { display: flex; gap: 8px; font-size: 11px; }
+.cf-label { color: var(--muted); flex-shrink: 0; min-width: 60px; }
+.cf-label::after { content: '：'; }
+.cf-value { color: var(--text); word-break: break-all; }
 
 /* error */
 .err-bar {
