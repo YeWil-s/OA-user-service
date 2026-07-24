@@ -8,6 +8,8 @@ import com.oa.ai.service.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.web.context.request.RequestAttributes;
+import org.springframework.web.context.request.RequestContextHolder;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
 
@@ -56,19 +58,21 @@ public class AgentServiceImpl implements AgentService {
         }
 
         final String sid = sessionId;
+        final RequestAttributes requestAttributes = RequestContextHolder.getRequestAttributes();
 
         if ("confirm".equals(action)) {
             Map<String, Object> formData = sessionForms.remove(sid);
             if (formData == null) {
                 return ragService.answerQuestion(message, userRoles, userId, deptId, null, sid);
             }
-            return confirmAndSubmit(formData, userId, deptId, sid);
+            return confirmAndSubmit(formData, userId, deptId, sid, requestAttributes);
         }
 
         if ("modify".equals(action)) {
             sessionForms.remove(sid);
             Sinks.Many<String> sink = Sinks.many().unicast().onBackpressureBuffer();
             new Thread(() -> {
+                RequestContextHolder.setRequestAttributes(requestAttributes);
                 try {
                     String modifyPrompt = "请问需要修改哪些信息？请描述您需要调整的内容（例如：改成请假3天、开始时间改成明天等）。";
                     sink.tryEmitNext("{\"type\":\"message\",\"content\":\"" + escapeJson(modifyPrompt) + "\"}");
@@ -91,6 +95,7 @@ public class AgentServiceImpl implements AgentService {
         Sinks.Many<String> sink = Sinks.many().unicast().onBackpressureBuffer();
 
         new Thread(() -> {
+            RequestContextHolder.setRequestAttributes(requestAttributes);
             try {
                 // Step 1: Intent classification (with conversation history for context)
                 sink.tryEmitNext("{\"type\":\"thinking\",\"content\":\"正在理解您的意图...\"}");
@@ -124,8 +129,21 @@ public class AgentServiceImpl implements AgentService {
                         boolean hasPendingForm = sessionForms.containsKey(sid);
                         if (hasPendingForm && ("confirm".equals(intentAction) || isConfirmationMessage(message))) {
                             Map<String, Object> formData = sessionForms.remove(sid);
-                            confirmAndSubmit(formData, userId, deptId, sid)
-                                    .subscribe(sink::tryEmitNext, sink::tryEmitError, sink::tryEmitComplete);
+                            boolean hasRequired = formData.containsKey("startTime")
+                                    && formData.get("startTime") != null
+                                    && !formData.get("startTime").toString().isBlank()
+                                    && formData.containsKey("endTime")
+                                    && formData.get("endTime") != null
+                                    && !formData.get("endTime").toString().isBlank()
+                                    && formData.containsKey("duration")
+                                    && formData.get("duration") != null;
+                            if (!hasRequired) {
+                                sessionForms.put(sid, formData);
+                                handleFormFilling(message, userId, deptId, sid, sink);
+                            } else {
+                                confirmAndSubmit(formData, userId, deptId, sid, requestAttributes)
+                                        .subscribe(sink::tryEmitNext, sink::tryEmitError, sink::tryEmitComplete);
+                            }
                         } else {
                             handleFormFilling(message, userId, deptId, sid, sink);
                         }
@@ -288,10 +306,12 @@ public class AgentServiceImpl implements AgentService {
         }
     }
 
-    private Flux<String> confirmAndSubmit(Map<String, Object> formData, Long userId, Long deptId, String sessionId) {
+    private Flux<String> confirmAndSubmit(Map<String, Object> formData, Long userId, Long deptId, String sessionId,
+                                          RequestAttributes requestAttributes) {
         Sinks.Many<String> sink = Sinks.many().unicast().onBackpressureBuffer();
 
         new Thread(() -> {
+            RequestContextHolder.setRequestAttributes(requestAttributes);
             try {
                 sink.tryEmitNext("{\"type\":\"thinking\",\"content\":\"正在提交申请...\"}");
 

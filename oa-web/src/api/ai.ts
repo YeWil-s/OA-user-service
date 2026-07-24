@@ -40,7 +40,7 @@ function parseEvent(raw: string): AiEvent | null {
 
 export async function streamAi(path: string, body: unknown, handlers: AiEventHandlers = {}) {
   const token = getToken()
-  const response = await fetch(path, {
+  const response = await fetch(`${API_BASE}${path}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

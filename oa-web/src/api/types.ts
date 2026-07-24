@@ -14,7 +14,16 @@ export interface LoginUser {
   username: string
   realName: string
   avatarUrl?: string | null
+  deptId?: number | null
+  deptName?: string | null
+  positionId?: number | null
+  positionName?: string | null
+  phone?: string | null
+  email?: string | null
+  gender?: number | null
+  entryDate?: string | null
   roles: string[]
+  roleNames?: string[] | null
   permissions: string[]
 }
 

@@ -1,7 +1,10 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import type { RouterVO } from '@/api/types'
 
 const MainLayout = () => import('@/layouts/MainLayout.vue')
+
+const PUBLIC_PATHS = ['/login', '/dashboard', '/profile']
 
 export const routes: RouteRecordRaw[] = [
   { path: '/login', name: 'login', component: () => import('@/views/LoginView.vue'), meta: { public: true } },
@@ -41,13 +44,37 @@ const router = createRouter({
   routes
 })
 
-router.beforeEach((to) => {
+function collectMenuPaths(menus: RouterVO[]): Set<string> {
+  const paths = new Set<string>()
+  const walk = (items: RouterVO[]) => {
+    for (const item of items) {
+      const p = '/' + (item.component || item.path)
+      paths.add(p)
+      if (item.children) walk(item.children)
+    }
+  }
+  walk(menus)
+  return paths
+}
+
+router.beforeEach(async (to) => {
   const auth = useAuthStore()
   if (!to.meta.public && !auth.isAuthed) {
     return '/login'
   }
   if (to.name === 'login' && auth.isAuthed) {
     return '/dashboard'
+  }
+  // 每次导航都刷新菜单，保证角色变动后立即生效
+  if (auth.isAuthed && to.path !== '/login') {
+    await auth.loadMenus()
+  }
+  // 限制只能访问当前角色有权限的路由
+  if (!to.meta.public && auth.menus.length > 0 && !PUBLIC_PATHS.includes(to.path)) {
+    const allowed = collectMenuPaths(auth.menus)
+    if (!allowed.has(to.path)) {
+      return '/dashboard'
+    }
   }
   return true
 })

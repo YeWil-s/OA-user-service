@@ -140,6 +140,16 @@ CREATE TABLE sys_role_menu (
     UNIQUE KEY uk_role_menu (role_id, menu_id)
 ) ENGINE=InnoDB COMMENT='角色菜单关联表';
 
+-- 岗位角色关联表
+DROP TABLE IF EXISTS sys_position_role;
+CREATE TABLE sys_position_role (
+    id          BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
+    position_id BIGINT NOT NULL COMMENT '岗位ID',
+    role_id     BIGINT NOT NULL COMMENT '角色ID',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_position_role (position_id, role_id)
+) ENGINE=InnoDB COMMENT='岗位角色关联表';
+
 -- ============================================================
 -- 3. attendance_db: 考勤打卡
 -- ============================================================
@@ -637,6 +647,14 @@ INSERT INTO sys_user_role (user_id, role_id) VALUES
 (2, 4),  -- zhangsan = 普通员工
 (3, 3),  -- lisi = 部门主管(HR经理)
 (4, 4);  -- wangwu = 普通员工
+
+-- 岗位角色关联
+INSERT INTO sys_position_role (position_id, role_id) VALUES
+(1, 1),   -- 总经理 → 超级管理员
+(5, 2),   -- HR经理 → HR管理员
+(2, 3),   -- 技术总监 → 部门主管
+(7, 3),   -- 财务经理 → 部门主管
+(8, 3);   -- 市场经理 → 部门主管
 
 -- 角色菜单关联（超级管理员拥有全部菜单）
 -- 简化写法: 超级管理员(role_id=1)绑定所有页面级菜单(menu_type=1或2)

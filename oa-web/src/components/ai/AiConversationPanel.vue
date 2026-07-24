@@ -94,10 +94,16 @@ onMounted(load)
         <template v-else-if="!detail.length">
           <div class="empty">点击左侧会话查看完整上下文</div>
         </template>
-        <div v-for="(m, i) in detail" :key="i" :class="['d-msg', i % 2 === 0 ? 'user' : 'ai']">
-          <em>{{ i % 2 === 0 ? 'YOU' : 'AI' }}</em>
-          <p>{{ m.question || m.answer || m.content }}</p>
-        </div>
+        <template v-for="(m, i) in detail" :key="i">
+          <div class="d-msg user">
+            <em>YOU</em>
+            <p>{{ m.question }}</p>
+          </div>
+          <div class="d-msg ai">
+            <em>AI</em>
+            <p>{{ m.answer || m.content }}</p>
+          </div>
+        </template>
       </div>
       <div v-if="error" class="err">{{ error }}</div>
     </div>

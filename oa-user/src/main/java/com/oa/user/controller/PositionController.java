@@ -10,6 +10,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @Tag(name = "岗位管理")
 @RestController
 @RequestMapping("/api/user/positions")
@@ -49,5 +51,11 @@ public class PositionController {
     public Result<Void> delete(@PathVariable Long id) {
         sysPositionService.deletePosition(id);
         return Result.success();
+    }
+
+    @Operation(summary = "获取岗位绑定的角色ID列表")
+    @GetMapping("/{id}/roles")
+    public Result<List<Long>> getRoleIds(@PathVariable Long id) {
+        return Result.success(sysPositionService.getRoleIdsByPositionId(id));
     }
 }

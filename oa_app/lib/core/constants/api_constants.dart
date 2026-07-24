@@ -5,8 +5,8 @@ class ApiConstants {
   static const bool useStubServices = false;
 
   // ---- 网关地址 ----
-  static const String baseUrl = 'http://localhost:8080';
-  static const String aiBaseUrl = 'http://localhost:8080';
+  static const String baseUrl = 'http://10.200.173.212:8080';
+  static const String aiBaseUrl = 'http://10.200.173.212:8080';
 
   // ---- 超时配置 ----
   static const Duration connectTimeout = Duration(seconds: 10);

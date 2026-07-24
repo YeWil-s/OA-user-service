@@ -161,6 +161,9 @@ public class AttendanceServiceImpl implements IAttendanceService {
         PunchDTO safeDto = dto == null ? new PunchDTO() : dto;
         LocalDate today = LocalDate.now();
         AttRecord record = selectDailyRecord(currentUser.getUserId(), today);
+        if (record != null && Integer.valueOf(3).equals(record.getPunchType())) {
+            throw new BusinessException(ResultCode.ON_LEAVE);
+        }
         if (record != null && record.getPunchInTime() != null) {
             throw new BusinessException(ResultCode.ALREADY_PUNCHED_IN, "今天已经完成上班打卡");
         }
@@ -211,6 +214,9 @@ public class AttendanceServiceImpl implements IAttendanceService {
         PunchDTO safeDto = dto == null ? new PunchDTO() : dto;
         LocalDate today = LocalDate.now();
         AttRecord record = selectDailyRecord(currentUser.getUserId(), today);
+        if (record != null && Integer.valueOf(3).equals(record.getPunchType())) {
+            throw new BusinessException(ResultCode.ON_LEAVE);
+        }
         if (record == null || record.getPunchInTime() == null) {
             throw new BusinessException(ResultCode.BAD_REQUEST, "请先完成上班打卡");
         }
@@ -516,10 +522,6 @@ public class AttendanceServiceImpl implements IAttendanceService {
 
         // if status filter is set, fetch more records to ensure enough after filtering
         boolean hasStatusFilter = StringUtils.hasText(safeDto.getStatus());
-        if (hasStatusFilter) {
-            // fetch all records in range to filter by status (status is computed, not stored)
-            wrapper.last("limit 2000");
-        }
         Page<AttRecord> page = attRecordMapper.selectPage(
                 new Page<>(hasStatusFilter ? 1 : safeDto.getPageNum(),
                            hasStatusFilter ? 2000 : safeDto.getPageSize()),

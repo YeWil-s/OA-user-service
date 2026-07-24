@@ -8,13 +8,24 @@ import com.oa.common.exception.BusinessException;
 import com.oa.common.result.ResultCode;
 import com.oa.user.dto.PositionDTO;
 import com.oa.user.entity.SysPosition;
+import com.oa.user.entity.SysPositionRole;
 import com.oa.user.mapper.SysPositionMapper;
+import com.oa.user.mapper.SysPositionRoleMapper;
 import com.oa.user.service.ISysPositionService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collections;
+import java.util.List;
+
 @Service
 public class SysPositionServiceImpl extends ServiceImpl<SysPositionMapper, SysPosition> implements ISysPositionService {
+
+    private final SysPositionRoleMapper sysPositionRoleMapper;
+
+    public SysPositionServiceImpl(SysPositionRoleMapper sysPositionRoleMapper) {
+        this.sysPositionRoleMapper = sysPositionRoleMapper;
+    }
 
     @Override
     public IPage<SysPosition> pagePositions(Integer pageNum, Integer pageSize, Long deptId) {
@@ -38,6 +49,7 @@ public class SysPositionServiceImpl extends ServiceImpl<SysPositionMapper, SysPo
         pos.setSortOrder(dto.getSortOrder() != null ? dto.getSortOrder() : 0);
         pos.setStatus(dto.getStatus() != null ? dto.getStatus() : 1);
         this.save(pos);
+        saveRoleBindings(pos.getId(), dto.getRoleIds());
     }
 
     @Override
@@ -59,11 +71,32 @@ public class SysPositionServiceImpl extends ServiceImpl<SysPositionMapper, SysPo
         if (dto.getSortOrder() != null) pos.setSortOrder(dto.getSortOrder());
         if (dto.getStatus() != null) pos.setStatus(dto.getStatus());
         this.updateById(pos);
+        // replace role bindings
+        sysPositionRoleMapper.delete(new LambdaQueryWrapper<SysPositionRole>()
+                .eq(SysPositionRole::getPositionId, id));
+        saveRoleBindings(id, dto.getRoleIds());
     }
 
     @Override
     @Transactional
     public void deletePosition(Long id) {
         this.removeById(id);
+        sysPositionRoleMapper.delete(new LambdaQueryWrapper<SysPositionRole>()
+                .eq(SysPositionRole::getPositionId, id));
+    }
+
+    @Override
+    public List<Long> getRoleIdsByPositionId(Long positionId) {
+        return sysPositionRoleMapper.selectRoleIdsByPositionId(positionId);
+    }
+
+    private void saveRoleBindings(Long positionId, List<Long> roleIds) {
+        if (roleIds == null || roleIds.isEmpty()) return;
+        for (Long roleId : roleIds) {
+            SysPositionRole pr = new SysPositionRole();
+            pr.setPositionId(positionId);
+            pr.setRoleId(roleId);
+            sysPositionRoleMapper.insert(pr);
+        }
     }
 }

@@ -2,6 +2,7 @@ package com.oa.user.interceptor;
 
 import com.oa.common.utils.JwtUtils;
 import com.oa.common.utils.RedisUtils;
+import com.oa.user.mapper.SysUserMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
@@ -20,10 +21,12 @@ public class AuthInterceptor implements HandlerInterceptor {
 
     private final JwtUtils jwtUtils;
     private final RedisUtils redisUtils;
+    private final SysUserMapper sysUserMapper;
 
-    public AuthInterceptor(JwtUtils jwtUtils, RedisUtils redisUtils) {
+    public AuthInterceptor(JwtUtils jwtUtils, RedisUtils redisUtils, SysUserMapper sysUserMapper) {
         this.jwtUtils = jwtUtils;
         this.redisUtils = redisUtils;
+        this.sysUserMapper = sysUserMapper;
     }
 
     @Override
@@ -48,11 +51,11 @@ public class AuthInterceptor implements HandlerInterceptor {
             return false;
         }
 
-        // Set user attributes for downstream use
+        // Set user attributes — query roles/permissions from DB to reflect real-time changes
         Long userId = jwtUtils.getUserId(token);
         String username = jwtUtils.getUsername(token);
-        List<String> roles = jwtUtils.getRoles(token);
-        List<String> permissions = jwtUtils.getPermissions(token);
+        List<String> roles = sysUserMapper.selectRoleCodesByUserId(userId);
+        List<String> permissions = sysUserMapper.selectPermissionCodesByUserId(userId);
 
         request.setAttribute("userId", userId);
         request.setAttribute("username", username);

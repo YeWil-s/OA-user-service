@@ -191,9 +191,7 @@ async function logout() {
 }
 
 onMounted(async () => {
-  if (auth.isAuthed && auth.menus.length === 0) {
-    await auth.loadMenus()
-  }
+  // 路由守卫已自动加载菜单，此处无需重复加载
 })
 </script>
 

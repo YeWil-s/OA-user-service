@@ -31,12 +31,14 @@ public class ApprovalServiceImpl implements IApprovalService {
         body.put("leaveType", dto.getLeaveType());
         body.put("startTime", dto.getStartTime().toString());
         body.put("endTime", dto.getEndTime().toString());
-        body.put("reason", dto.getReason());
+        body.put("reason", dto.getReason() != null && !dto.getReason().isBlank()
+                ? dto.getReason() : "AI智能填单");
 
         try {
             Result<Map<String, Object>> result = approvalServiceClient.submit(body);
             if (result == null || result.getCode() != 200 || result.getData() == null) {
-                throw new BusinessException(50000, "调用审批服务失败");
+                String detail = result != null ? "code=" + result.getCode() + " msg=" + result.getMessage() : "result is null";
+                throw new BusinessException(50000, "调用审批服务失败: " + detail);
             }
             Object applicationNo = result.getData().get("applicationNo");
             return applicationNo != null ? applicationNo.toString() : "未知单号";

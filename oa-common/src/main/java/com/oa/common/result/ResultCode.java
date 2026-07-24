@@ -26,6 +26,7 @@ public enum ResultCode {
     ALREADY_PUNCHED_IN(20001, "今日已打卡，请勿重复操作"),
     PUNCH_NOT_IN_RANGE(20002, "不在打卡时间范围内"),
     SHIFT_NOT_ASSIGNED(20003, "未分配班次"),
+    ON_LEAVE(20004, "当前处于请假状态，无法打卡"),
 
     // approval-service 30001-30999
     APPLICATION_NOT_FOUND(30001, "申请单不存在"),

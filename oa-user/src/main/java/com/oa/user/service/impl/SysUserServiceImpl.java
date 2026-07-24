@@ -12,8 +12,14 @@ import com.oa.user.client.AssetServiceClient;
 import com.oa.user.client.AttendanceServiceClient;
 import com.oa.user.dto.EmployeeDTO;
 import com.oa.user.dto.ResetPasswordDTO;
+import com.oa.user.entity.SysDept;
+import com.oa.user.entity.SysPosition;
+import com.oa.user.entity.SysPositionRole;
 import com.oa.user.entity.SysUser;
 import com.oa.user.entity.SysUserRole;
+import com.oa.user.mapper.SysDeptMapper;
+import com.oa.user.mapper.SysPositionMapper;
+import com.oa.user.mapper.SysPositionRoleMapper;
 import com.oa.user.mapper.SysUserMapper;
 import com.oa.user.mapper.SysUserRoleMapper;
 import com.oa.user.service.ISysUserService;
@@ -41,12 +47,18 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     private final AssetServiceClient assetServiceClient;
     private final AttendanceServiceClient attendanceServiceClient;
     private final SysUserRoleMapper sysUserRoleMapper;
+    private final SysDeptMapper sysDeptMapper;
+    private final SysPositionMapper sysPositionMapper;
+    private final SysPositionRoleMapper sysPositionRoleMapper;
 
     public SysUserServiceImpl(SysUserMapper sysUserMapper, JwtUtils jwtUtils,
                               BCryptPasswordEncoder passwordEncoder, RedisUtils redisUtils,
                               AssetServiceClient assetServiceClient,
                               AttendanceServiceClient attendanceServiceClient,
-                              SysUserRoleMapper sysUserRoleMapper) {
+                              SysUserRoleMapper sysUserRoleMapper,
+                              SysDeptMapper sysDeptMapper,
+                              SysPositionMapper sysPositionMapper,
+                              SysPositionRoleMapper sysPositionRoleMapper) {
         this.sysUserMapper = sysUserMapper;
         this.jwtUtils = jwtUtils;
         this.passwordEncoder = passwordEncoder;
@@ -54,6 +66,9 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         this.assetServiceClient = assetServiceClient;
         this.attendanceServiceClient = attendanceServiceClient;
         this.sysUserRoleMapper = sysUserRoleMapper;
+        this.sysDeptMapper = sysDeptMapper;
+        this.sysPositionMapper = sysPositionMapper;
+        this.sysPositionRoleMapper = sysPositionRoleMapper;
     }
 
     @Override
@@ -72,13 +87,32 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
 
         List<String> roles = sysUserMapper.selectRoleCodesByUserId(user.getId());
         List<String> permissions = sysUserMapper.selectPermissionCodesByUserId(user.getId());
+        List<String> roleNames = sysUserMapper.selectRoleNamesByUserId(user.getId());
 
         String token = jwtUtils.generateToken(user.getId(), user.getDeptId(), user.getUsername(), roles, permissions);
 
         user.setLastLoginTime(LocalDateTime.now());
         this.updateById(user);
 
-        return new LoginVO(token, user.getId(), user.getUsername(), user.getRealName(), user.getAvatarUrl(), roles, permissions);
+        LoginVO vo = new LoginVO(token, user.getId(), user.getUsername(), user.getRealName(), user.getAvatarUrl(), roles, permissions);
+        vo.setRoleNames(roleNames);
+        vo.setDeptId(user.getDeptId());
+        vo.setPositionId(user.getPositionId());
+        vo.setPhone(user.getPhone());
+        vo.setEmail(user.getEmail());
+        vo.setGender(user.getGender());
+        if (user.getEntryDate() != null) {
+            vo.setEntryDate(user.getEntryDate().toString());
+        }
+        if (user.getDeptId() != null) {
+            SysDept dept = sysDeptMapper.selectById(user.getDeptId());
+            if (dept != null) vo.setDeptName(dept.getDeptName());
+        }
+        if (user.getPositionId() != null) {
+            SysPosition pos = sysPositionMapper.selectById(user.getPositionId());
+            if (pos != null) vo.setPositionName(pos.getPositionName());
+        }
+        return vo;
     }
 
     @Override
@@ -106,16 +140,33 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
             throw new BusinessException(ResultCode.USER_NOT_FOUND);
         }
 
-        List<String> roles = jwtUtils.getRoles(token);
-        List<String> permissions = jwtUtils.getPermissions(token);
+        List<String> roles = sysUserMapper.selectRoleCodesByUserId(userId);
+        List<String> permissions = sysUserMapper.selectPermissionCodesByUserId(userId);
+        List<String> roleNames = sysUserMapper.selectRoleNamesByUserId(userId);
 
         CurrentUserVO vo = new CurrentUserVO();
         vo.setUserId(user.getId());
         vo.setUsername(user.getUsername());
         vo.setRealName(user.getRealName());
         vo.setDeptId(user.getDeptId());
+        vo.setPositionId(user.getPositionId());
         vo.setAvatarUrl(user.getAvatarUrl());
+        vo.setPhone(user.getPhone());
+        vo.setEmail(user.getEmail());
+        vo.setGender(user.getGender());
+        if (user.getEntryDate() != null) {
+            vo.setEntryDate(user.getEntryDate().toString());
+        }
+        if (user.getDeptId() != null) {
+            SysDept dept = sysDeptMapper.selectById(user.getDeptId());
+            if (dept != null) vo.setDeptName(dept.getDeptName());
+        }
+        if (user.getPositionId() != null) {
+            SysPosition pos = sysPositionMapper.selectById(user.getPositionId());
+            if (pos != null) vo.setPositionName(pos.getPositionName());
+        }
         vo.setRoles(roles);
+        vo.setRoleNames(roleNames);
         vo.setPermissions(permissions);
         return vo;
     }
@@ -165,7 +216,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         this.save(user);
 
         Long newUserId = user.getId();
-        assignDefaultRole(newUserId, dto.getPositionId());
+        assignRolesByPosition(newUserId, dto.getPositionId());
         try {
             assetServiceClient.createArchive(newUserId);
         } catch (Exception e) {
@@ -178,17 +229,25 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         }
     }
 
-    private void assignDefaultRole(Long userId, Long positionId) {
-        Long roleId = switch (positionId != null ? positionId.intValue() : 0) {
-            case 1 -> 1L;  // 总经理 → ROLE_ADMIN
-            case 5 -> 2L;  // HR经理 → ROLE_HR
-            case 2, 7, 8 -> 3L;  // 技术总监/财务经理/市场经理 → ROLE_LEADER
-            default -> 4L; // 其他 → ROLE_EMPLOYEE
-        };
-        SysUserRole userRole = new SysUserRole();
-        userRole.setUserId(userId);
-        userRole.setRoleId(roleId);
-        sysUserRoleMapper.insert(userRole);
+    private void assignRolesByPosition(Long userId, Long positionId) {
+        if (positionId == null) return;
+        List<Long> roleIds = sysPositionRoleMapper.selectRoleIdsByPositionId(positionId);
+        if (roleIds.isEmpty()) {
+            // fallback: default employee role
+            roleIds = List.of(4L);
+        }
+        for (Long roleId : roleIds) {
+            SysUserRole userRole = new SysUserRole();
+            userRole.setUserId(userId);
+            userRole.setRoleId(roleId);
+            sysUserRoleMapper.insert(userRole);
+        }
+    }
+
+    private void reassignRolesByPosition(Long userId, Long positionId) {
+        sysUserRoleMapper.delete(new LambdaQueryWrapper<SysUserRole>()
+                .eq(SysUserRole::getUserId, userId));
+        assignRolesByPosition(userId, positionId);
     }
 
     @Override
@@ -198,6 +257,8 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         if (user == null) {
             throw new BusinessException(ResultCode.USER_NOT_FOUND);
         }
+        boolean positionChanged = dto.getPositionId() != null
+                && !dto.getPositionId().equals(user.getPositionId());
         user.setRealName(dto.getRealName());
         user.setPhone(dto.getPhone());
         user.setEmail(dto.getEmail());
@@ -207,6 +268,9 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         user.setEntryDate(dto.getEntryDate());
         if (dto.getStatus() != null) user.setStatus(dto.getStatus());
         this.updateById(user);
+        if (positionChanged) {
+            reassignRolesByPosition(user.getId(), dto.getPositionId());
+        }
     }
 
     @Override
@@ -216,9 +280,14 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         if (user == null) {
             throw new BusinessException(ResultCode.USER_NOT_FOUND);
         }
+        boolean positionChanged = positionId != null
+                && !positionId.equals(user.getPositionId());
         user.setDeptId(deptId);
         user.setPositionId(positionId);
         this.updateById(user);
+        if (positionChanged) {
+            reassignRolesByPosition(user.getId(), positionId);
+        }
     }
 
     @Override

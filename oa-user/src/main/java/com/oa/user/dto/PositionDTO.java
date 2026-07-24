@@ -1,7 +1,10 @@
 package com.oa.user.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+
+import java.util.List;
 
 public class PositionDTO {
 
@@ -13,6 +16,8 @@ public class PositionDTO {
     private Long deptId;
     private Integer sortOrder;
     private Integer status;
+    @NotEmpty(message = "岗位必须绑定至少一个角色")
+    private List<Long> roleIds;
 
     public String getPositionName() { return positionName; }
     public void setPositionName(String positionName) { this.positionName = positionName; }
@@ -24,4 +29,6 @@ public class PositionDTO {
     public void setSortOrder(Integer sortOrder) { this.sortOrder = sortOrder; }
     public Integer getStatus() { return status; }
     public void setStatus(Integer status) { this.status = status; }
+    public List<Long> getRoleIds() { return roleIds; }
+    public void setRoleIds(List<Long> roleIds) { this.roleIds = roleIds; }
 }
