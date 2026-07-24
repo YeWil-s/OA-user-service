@@ -338,6 +338,7 @@ public class AttendanceServiceImpl implements IAttendanceService {
                     .last("limit 1"));
             if (existing != null) {
                 existing.setOvertimeHours(dto.getOvertimeHours());
+                existing.setApplicationId(dto.getApplicationId());
                 attScheduleMapper.updateById(existing);
             } else {
                 UserShift userShift = userShiftMapper.selectOne(new LambdaQueryWrapper<UserShift>()
@@ -349,6 +350,7 @@ public class AttendanceServiceImpl implements IAttendanceService {
                 schedule.setShiftId(userShift != null ? userShift.getShiftId() : 1L);
                 schedule.setStatus(1);
                 schedule.setOvertimeHours(dto.getOvertimeHours());
+                schedule.setApplicationId(dto.getApplicationId());
                 schedule.setCreateTime(LocalDateTime.now());
                 attScheduleMapper.insert(schedule);
             }
@@ -360,9 +362,10 @@ public class AttendanceServiceImpl implements IAttendanceService {
     @Transactional(rollbackFor = Exception.class)
     public void cancelOvertime(Long applicationId) {
         List<AttSchedule> overtimeSchedules = attScheduleMapper.selectList(new LambdaQueryWrapper<AttSchedule>()
-                .gt(AttSchedule::getOvertimeHours, 0));
+                .eq(AttSchedule::getApplicationId, applicationId));
         for (AttSchedule s : overtimeSchedules) {
             s.setOvertimeHours(java.math.BigDecimal.ZERO);
+            s.setApplicationId(null);
             attScheduleMapper.updateById(s);
         }
     }

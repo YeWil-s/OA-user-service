@@ -179,7 +179,7 @@ CREATE TABLE att_record (
     punch_in_time  DATETIME     DEFAULT NULL         COMMENT '上班打卡时间',
     punch_out_time DATETIME     DEFAULT NULL         COMMENT '下班打卡时间',
     punch_type     TINYINT      NOT NULL DEFAULT 1   COMMENT '打卡类型: 1=现场, 2=外勤',
-    device_info    VARCHAR(100) DEFAULT NULL         COMMENT '设备信息/IP',
+    device_info    VARCHAR(500) DEFAULT NULL         COMMENT '设备信息/IP',
     location       VARCHAR(200) DEFAULT NULL         COMMENT '打卡地点名称',
     latitude       DECIMAL(10,7) DEFAULT NULL        COMMENT '纬度',
     longitude      DECIMAL(10,7) DEFAULT NULL        COMMENT '经度',
@@ -230,6 +230,7 @@ CREATE TABLE att_schedule (
     shift_id       BIGINT   NOT NULL             COMMENT '班次ID',
     status         TINYINT  DEFAULT 1            COMMENT '1=正常 2=请假',
     overtime_hours DECIMAL(4,1) NOT NULL DEFAULT 0 COMMENT '加班小时数(审批通过后写入)',
+    application_id BIGINT   DEFAULT NULL             COMMENT '关联的加班申请ID(撤销时用于精确回滚)',
     create_time    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     update_time    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
@@ -499,6 +500,30 @@ CREATE TABLE ai_knowledge_doc_tag (
     KEY idx_doc_id (doc_id),
     KEY idx_tag_id (tag_id)
 ) ENGINE=InnoDB COMMENT='知识文档-标签关联表';
+
+-- AI模块本地缓存的申请单(供智能填单/分析查询,避免跨服务联表)
+DROP TABLE IF EXISTS app_application;
+CREATE TABLE app_application (
+    id                  BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键',
+    application_no      VARCHAR(50)  NOT NULL             COMMENT '申请编号(如 LV20260721001)',
+    user_id             BIGINT       NOT NULL             COMMENT '申请人ID',
+    dept_id             BIGINT       NOT NULL             COMMENT '申请人部门ID',
+    app_type            TINYINT      NOT NULL             COMMENT '申请类型: 1=请假, 2=加班, 3=外勤',
+    leave_type          TINYINT      DEFAULT NULL         COMMENT '请假类型: 1=年假,2=事假,3=病假,4=婚假,5=调休(仅app_type=1)',
+    start_time          DATETIME     NOT NULL             COMMENT '开始时间',
+    end_time            DATETIME     NOT NULL             COMMENT '结束时间',
+    duration            DECIMAL(5,1) NOT NULL             COMMENT '时长(天)',
+    reason              VARCHAR(500) DEFAULT NULL         COMMENT '申请原因',
+    attachments         VARCHAR(500) DEFAULT NULL         COMMENT '附件URL,逗号分隔',
+    status              TINYINT      NOT NULL DEFAULT 0   COMMENT '状态: 0=草稿,1=审批中,2=已通过,3=已驳回,4=已撤销',
+    current_approver_id BIGINT       DEFAULT NULL         COMMENT '当前审批人ID',
+    create_time         DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    update_time         DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_app_no (application_no),
+    KEY idx_user_status (user_id, status),
+    KEY idx_approver (current_approver_id)
+) ENGINE=InnoDB COMMENT='AI模块本地缓存申请单表';
 
 -- ============================================================
 -- 8. statistics_db: 可视化统计数据
